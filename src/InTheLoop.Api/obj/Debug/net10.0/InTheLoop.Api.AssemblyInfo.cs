@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("InTheLoop.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+27d30bbcf6c3f4fb06c190d1774ac3e52567f431")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9f9c8c67399cf029d51ae5c328fe4142147c923d")]
 [assembly: System.Reflection.AssemblyProductAttribute("InTheLoop.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("InTheLoop.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
