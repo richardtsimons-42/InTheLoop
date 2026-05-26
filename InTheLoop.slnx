@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/InTheLoop.Api/InTheLoop.Api.csproj" />
+  </Folder>
+</Solution>
