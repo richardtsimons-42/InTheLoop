@@ -140,3 +140,4 @@ C:\Users\richa\InTheLoop\src\InTheLoop.Api\obj\Debug\net10.0\refint\InTheLoop.Ap
 C:\Users\richa\InTheLoop\src\InTheLoop.Api\obj\Debug\net10.0\InTheLoop.Api.pdb
 C:\Users\richa\InTheLoop\src\InTheLoop.Api\obj\Debug\net10.0\InTheLoop.Api.genruntimeconfig.cache
 C:\Users\richa\InTheLoop\src\InTheLoop.Api\obj\Debug\net10.0\ref\InTheLoop.Api.dll
+C:\Users\richa\InTheLoop\src\InTheLoop.Api\bin\Debug\net10.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
