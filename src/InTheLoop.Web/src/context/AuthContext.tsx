@@ -1,37 +1,59 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import axios from 'axios';
 import { authApi } from './api';
+import { userApi } from './userApi';
 
-interface User {
+export interface UserProfile {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
+  avatarUrl: string | null;
+  isVerified: boolean;
+  createdAt: string;
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: UserProfile | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (firstName: string, lastName: string, email: string, password: string) => Promise<void>;
   logout: () => void;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
 
   axios.defaults.baseURL = 'http://localhost:5000';
   axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+  const refreshProfile = async () => {
+    if (!token) {
+      setUser(null);
+      return;
+    }
+    try {
+      const profile = await userApi.getProfile();
+      setUser(profile);
+    } catch {
+      setUser(null);
+    }
+  };
+
+  useEffect(() => {
+    refreshProfile();
+  }, [token]);
 
   const login = async (email: string, password: string) => {
     const response = await axios.post('/api/auth/login', { email, password });
     setToken(response.data.token);
     localStorage.setItem('token', response.data.token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-    setUser({ id: '', email, firstName: '', lastName: '' });
+    await refreshProfile();
   };
 
   const register = async (firstName: string, lastName: string, email: string, password: string) => {
@@ -39,7 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(response.data.token);
     localStorage.setItem('token', response.data.token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-    setUser({ id: '', email, firstName, lastName });
+    await refreshProfile();
   };
 
   const logout = async () => {
@@ -55,7 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, login, register, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

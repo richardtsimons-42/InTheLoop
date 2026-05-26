@@ -11,7 +11,12 @@ export default function NavBar() {
       </Link>
       <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
         <Link to="/families" style={{ color: 'white', textDecoration: 'none' }}>Families</Link>
-        {user && <span style={{ color: 'white' }}>{user.firstName} {user.lastName}</span>}
+        {user && (
+          <>
+            <Link to="/profile" style={{ color: 'white', textDecoration: 'none' }}>Profile</Link>
+            <span style={{ color: 'white' }}>{user.firstName} {user.lastName}</span>
+          </>
+        )}
         <button onClick={logout} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer' }}>
           Logout
         </button>
