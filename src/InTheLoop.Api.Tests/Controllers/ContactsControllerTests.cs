@@ -253,7 +253,7 @@ public class ContactsControllerTests
         var okResult = Assert.IsType<OkObjectResult>(result);
         var list = GetConversationList(okResult);
         Assert.True(list.Count >= 1, $"Expected at least 1 message but got {list.Count}");
-        Assert.Contains("Hi", list.Select(m => m["content"].ToString()));
+        Assert.Contains("Hi", list.Select(m => m["Content"].ToString()));
 
         context.Dispose();
     }

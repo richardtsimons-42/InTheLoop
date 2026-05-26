@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/InTheLoop.Api.Tests/InTheLoop.Api.Tests.csproj" />
     <Project Path="src/InTheLoop.Api/InTheLoop.Api.csproj" />
   </Folder>
 </Solution>

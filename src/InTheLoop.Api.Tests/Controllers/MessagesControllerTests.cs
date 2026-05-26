@@ -78,7 +78,8 @@ public class MessagesControllerTests : IClassFixture<TestWebApplicationFactory>
         // Assert
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var message = await context.Messages.FirstAsync();
+        var message = await context.Messages.FirstOrDefaultAsync(m => m.Content == "DB save test");
+        Assert.NotNull(message);
         Assert.Equal("db-msg-sender", message.SenderId);
         Assert.Equal("db-msg-recipient", message.RecipientId);
         Assert.Equal("DB save test", message.Content);
