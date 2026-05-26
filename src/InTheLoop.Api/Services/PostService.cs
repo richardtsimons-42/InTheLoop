@@ -31,9 +31,6 @@ public class PostService
     public async Task<IEnumerable<PostDto>> GetFamilyFeedAsync(int familyId, int skip = 0, int take = 20)
     {
         var posts = await _context.Posts
-            .Include(p => p.Author)
-            .Include(p => p.Photos)
-            .Include(p => p.Family)
             .Where(p => p.FamilyId == familyId)
             .OrderByDescending(p => p.CreatedAt)
             .Skip(skip)
@@ -45,14 +42,31 @@ public class PostService
 
     private PostDto MapToDto(Post post)
     {
+        // Look up author name and family name from the context since navigation properties
+        // may not be loaded in the Post entity
+        var authorName = _context.Users
+            .Where(u => u.Id == post.AuthorId)
+            .Select(u => $"{u.FirstName} {u.LastName}")
+            .FirstOrDefault() ?? "";
+
+        var familyName = _context.Families
+            .Where(f => f.Id == post.FamilyId)
+            .Select(f => f.Name)
+            .FirstOrDefault() ?? "";
+
+        var photoUrls = _context.Photos
+            .Where(p => p.PostId == post.Id)
+            .Select(p => p.Url)
+            .ToList();
+
         return new PostDto(
             post.Id,
             post.Content,
-            $"{post.Author.FirstName} {post.Author.LastName}",
-            post.Author.AvatarUrl,
+            authorName,
+            _context.Users.Where(u => u.Id == post.AuthorId).Select(u => u.AvatarUrl).FirstOrDefault(),
             post.FamilyId,
-            post.Family.Name,
-            post.Photos.Select(p => p.Url).ToList(),
+            familyName,
+            photoUrls,
             post.CreatedAt);
     }
 }

@@ -1,0 +1,17 @@
+# Build results
+**/bin/
+**/obj/
+
+# Coverage output
+coverage*.xml
+TestResults/
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# IDE
+.vs/
+*.user
+*.suo

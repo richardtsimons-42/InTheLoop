@@ -46,7 +46,6 @@ public class FamilyService
             .ToListAsync();
 
         var families = await _context.Families
-            .Include(f => f.Owner)
             .Include(f => f.Members)
             .Where(f => familyIds.Contains(f.Id))
             .ToListAsync();
@@ -74,12 +73,15 @@ public class FamilyService
 
     private FamilyDto MapToDto(Family family)
     {
+        string ownerName = family.Owner != null
+            ? $"{family.Owner.FirstName} {family.Owner.LastName}"
+            : "";
         return new FamilyDto(
             family.Id,
             family.Name,
             family.Description,
-            $"{family.Owner.FirstName} {family.Owner.LastName}",
-            family.Members.Count,
+            ownerName,
+            family.Members?.Count ?? 0,
             family.CoverPhotoUrl,
             family.CreatedAt);
     }
