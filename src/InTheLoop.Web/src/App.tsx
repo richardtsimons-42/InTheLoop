@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import FamiliesPage from './pages/FamiliesPage';
 import CreateFamilyPage from './pages/CreateFamilyPage';
+import FeedPage from './pages/FeedPage';
 
 function PrivateRoute({ children }: { children: JSX.Element }) {
   const { token } = useAuth();
@@ -18,7 +19,7 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/families" element={<PrivateRoute><FamiliesPage /></PrivateRoute>} />
         <Route path="/families/new" element={<PrivateRoute><CreateFamilyPage /></PrivateRoute>} />
-        <Route path="/families/:familyId" element={<PrivateRoute><div>Feed (placeholder)</div></PrivateRoute>} />
+        <Route path="/families/:familyId" element={<PrivateRoute><FeedPage /></PrivateRoute>} />
         <Route path="/feed" element={<PrivateRoute><div>Feed (placeholder)</div></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
