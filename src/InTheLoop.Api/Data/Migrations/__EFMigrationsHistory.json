@@ -1,0 +1,7 @@
+{
+  "EntityFrameworkCoreVersion": "10.0.8",
+  "ModelHash": "initial",
+  "Migration": "InitialCreate",
+  "Id": "InTheLoop.Api.Data.Migrations.InitialCreate",
+  "Context": "InTheLoop.Api.Data.ApplicationDbContext"
+}
