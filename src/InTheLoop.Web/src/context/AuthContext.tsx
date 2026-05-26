@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 import axios from 'axios';
+import { authApi } from './api';
 
 interface User {
   id: string;
@@ -41,7 +42,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser({ id: '', email, firstName, lastName });
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // Backend may be down — still clear local state
+    }
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');

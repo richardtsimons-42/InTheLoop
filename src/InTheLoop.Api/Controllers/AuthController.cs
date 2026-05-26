@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Authorization;
 using InTheLoop.Api.Models;
 using InTheLoop.Api.Services;
 
@@ -44,6 +45,16 @@ public class AuthController : ControllerBase
             return Unauthorized("Invalid credentials");
 
         return Ok(new { token = _jwtService.GenerateToken(user) });
+    }
+
+    [HttpPost("logout")]
+    [Authorize]
+    public IActionResult Logout()
+    {
+        // JWT is stateless — the token remains valid until it expires.
+        // The client should discard the token (clear localStorage).
+        // For production, add a token blacklist (Redis/db) here.
+        return Ok(new { message = "Logged out" });
     }
 }
 

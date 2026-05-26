@@ -36,3 +36,7 @@ export const messagesApi = {
   getConversation: (recipientId?: string, familyId?: number) =>
     api.get('/messages/conversation', { params: { recipientId, familyId } }),
 };
+
+export const authApi = {
+  logout: () => api.post('/auth/logout'),
+};
