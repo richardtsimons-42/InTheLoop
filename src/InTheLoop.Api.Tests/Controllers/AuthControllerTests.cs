@@ -184,4 +184,66 @@ public class AuthControllerTests : IClassFixture<TestWebApplicationFactory>
         var payload = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(parts[1].PadRight(parts[1].Length + (4 - parts[1].Length % 4) % 4, '=')));
         Assert.Contains("claims@example.com", payload);
     }
+
+    [Fact]
+    public async Task Logout_Returns200WhenAuthenticated()
+    {
+        // Arrange
+        var registerClient = CreateClient();
+        var registerRequest = new { email = "logout@example.com", password = "TestPass123!", firstName = "Logout", lastName = "User" };
+        await PostJsonAsync(registerClient, "/api/auth/register", registerRequest);
+
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-User-Id", "test-user-logout");
+        // Create the user in the test DB so the auth handler can find it
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var user = new User
+        {
+            Id = "test-user-logout",
+            UserName = "logout@example.com",
+            Email = "logout@example.com",
+            FirstName = "Logout",
+            LastName = "User",
+            IsVerified = false
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        // Act
+        var response = await client.PostAsync("/api/auth/logout", null);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        var json = JsonDocument.Parse(body);
+        Assert.True(json.RootElement.TryGetProperty("message", out _));
+    }
+
+    [Fact]
+    public async Task Logout_Returns401WhenNotAuthenticated()
+    {
+        // Arrange
+        var client = CreateClient();
+
+        // Act
+        var response = await client.PostAsync("/api/auth/logout", null);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Logout_Returns401WithInvalidTestUser()
+    {
+        // Arrange
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-User-Id", "nonexistent-user");
+
+        // Act
+        var response = await client.PostAsync("/api/auth/logout", null);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 }
