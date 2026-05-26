@@ -40,6 +40,16 @@ public class FamiliesController : ControllerBase
         var result = await _familyService.JoinFamilyAsync(userId, familyId);
         return Ok(result);
     }
+
+    [HttpPost("{familyId}/leave")]
+    public async Task<IActionResult> LeaveFamily(int familyId)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value!;
+        var result = await _familyService.LeaveFamilyAsync(userId, familyId);
+        if (!result)
+            return NotFound(new { message = "Not a member of this family" });
+        return Ok(new { message = "Left family successfully" });
+    }
 }
 
 public record CreateFamilyRequest(string Name, string? Description);

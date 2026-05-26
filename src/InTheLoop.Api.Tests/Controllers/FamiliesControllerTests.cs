@@ -253,4 +253,93 @@ public class FamiliesControllerTests : IClassFixture<TestWebApplicationFactory>
         // Assert
         Assert.Equal(1, memberCount);
     }
+
+    [Fact]
+    public async Task LeaveFamily_Returns200WhenMember()
+    {
+        // Arrange
+        var ownerClient = CreateAuthenticatedClient("leave-owner");
+        var createResponse = await PostJsonAsync(ownerClient, "/api/families", new { name = "Leave Family", description = "Leave test" });
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        var createJson = JsonDocument.Parse(createBody);
+        var familyId = createJson.RootElement.GetProperty("id").GetInt32();
+
+        var memberClient = CreateAuthenticatedClient("leave-member");
+        await PostJsonNullAsync(memberClient, $"/api/families/{familyId}/join");
+
+        // Act
+        var response = await PostJsonNullAsync(memberClient, $"/api/families/{familyId}/leave");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        var json = JsonDocument.Parse(body);
+        Assert.True(json.RootElement.TryGetProperty("message", out _));
+    }
+
+    [Fact]
+    public async Task LeaveFamily_RemovesMemberFromFamily()
+    {
+        // Arrange
+        var ownerClient = CreateAuthenticatedClient("leave-db-owner");
+        var createResponse = await PostJsonAsync(ownerClient, "/api/families", new { name = "Leave DB Family", description = "DB leave test" });
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        var createJson = JsonDocument.Parse(createBody);
+        var familyId = createJson.RootElement.GetProperty("id").GetInt32();
+
+        var memberClient = CreateAuthenticatedClient("leave-db-member");
+        await PostJsonNullAsync(memberClient, $"/api/families/{familyId}/join");
+
+        // Act
+        await PostJsonNullAsync(memberClient, $"/api/families/{familyId}/leave");
+
+        // Assert
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.False(await context.FamilyMembers.AnyAsync(m => m.UserId == "leave-db-member" && m.FamilyId == familyId));
+    }
+
+    [Fact]
+    public async Task LeaveFamily_Returns404WhenNotMember()
+    {
+        // Arrange
+        var ownerClient = CreateAuthenticatedClient("not-member-owner");
+        var createResponse = await PostJsonAsync(ownerClient, "/api/families", new { name = "Not Member Family", description = "Not member test" });
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        var createJson = JsonDocument.Parse(createBody);
+        var familyId = createJson.RootElement.GetProperty("id").GetInt32();
+
+        var nonMemberClient = CreateAuthenticatedClient("not-member-user");
+
+        // Act
+        var response = await PostJsonNullAsync(nonMemberClient, $"/api/families/{familyId}/leave");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task LeaveFamily_KeepsOwnerAndFamilyIntact()
+    {
+        // Arrange
+        var ownerClient = CreateAuthenticatedClient("leave-keep-owner");
+        var createResponse = await PostJsonAsync(ownerClient, "/api/families", new { name = "Keep Family", description = "Keep test" });
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        var createJson = JsonDocument.Parse(createBody);
+        var familyId = createJson.RootElement.GetProperty("id").GetInt32();
+
+        var memberClient = CreateAuthenticatedClient("leave-keep-member");
+        await PostJsonNullAsync(memberClient, $"/api/families/{familyId}/join");
+
+        // Act
+        await PostJsonNullAsync(memberClient, $"/api/families/{familyId}/leave");
+
+        // Assert
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var family = await context.Families.FindAsync(familyId);
+        Assert.NotNull(family);
+        Assert.Equal("Keep Family", family.Name);
+        Assert.True(await context.FamilyMembers.AnyAsync(m => m.UserId == "leave-keep-owner" && m.FamilyId == familyId));
+    }
 }

@@ -71,6 +71,18 @@ public class FamilyService
         return true;
     }
 
+    public async Task<bool> LeaveFamilyAsync(string userId, int familyId)
+    {
+        var member = await _context.FamilyMembers
+            .FirstOrDefaultAsync(fm => fm.UserId == userId && fm.FamilyId == familyId);
+
+        if (member == null) return false;
+
+        _context.FamilyMembers.Remove(member);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
     private FamilyDto MapToDto(Family family)
     {
         string ownerName = family.Owner != null

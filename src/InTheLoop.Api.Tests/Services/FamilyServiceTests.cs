@@ -169,4 +169,59 @@ public class FamilyServiceTests
         // Assert
         Assert.False(result);
     }
+
+    [Fact]
+    public async Task LeaveFamilyAsync_RemovesMemberFromFamily()
+    {
+        // Arrange
+        var context = CreateTestContext();
+        var service = new FamilyService(context);
+
+        await service.CreateFamilyAsync("owner-1", "Leave Test", "Test");
+        await service.JoinFamilyAsync("member-1", 1);
+
+        // Act
+        var result = await service.LeaveFamilyAsync("member-1", 1);
+
+        // Assert
+        Assert.True(result);
+        Assert.False(await context.FamilyMembers.AnyAsync(m => m.UserId == "member-1"));
+    }
+
+    [Fact]
+    public async Task LeaveFamilyAsync_ReturnsFalseWhenNotMember()
+    {
+        // Arrange
+        var context = CreateTestContext();
+        var service = new FamilyService(context);
+
+        await service.CreateFamilyAsync("owner-1", "Not Member", "Test");
+
+        // Act
+        var result = await service.LeaveFamilyAsync("non-member", 1);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task LeaveFamilyAsync_RemovesMemberButKeepsFamily()
+    {
+        // Arrange
+        var context = CreateTestContext();
+        var service = new FamilyService(context);
+
+        await service.CreateFamilyAsync("owner-1", "Stay Family", "Test");
+        await service.JoinFamilyAsync("member-1", 1);
+
+        // Act
+        await service.LeaveFamilyAsync("member-1", 1);
+
+        // Assert
+        var family = await context.Families.FindAsync(1);
+        Assert.NotNull(family);
+        Assert.Equal("Stay Family", family.Name);
+        var owner = await context.FamilyMembers.FindAsync("owner-1", 1);
+        Assert.NotNull(owner);
+    }
 }
