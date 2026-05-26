@@ -20,6 +20,7 @@ interface AuthContextType {
   register: (firstName: string, lastName: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
+  currentUserId: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -27,6 +28,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   axios.defaults.baseURL = 'http://localhost:5000';
   axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -39,6 +41,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const profile = await userApi.getProfile();
       setUser(profile);
+      setCurrentUserId(profile.id);
+      localStorage.setItem('currentUserId', profile.id);
     } catch {
       setUser(null);
     }
@@ -72,12 +76,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     setToken(null);
     setUser(null);
+    setCurrentUserId(null);
     localStorage.removeItem('token');
+    localStorage.removeItem('currentUserId');
     delete axios.defaults.headers.common['Authorization'];
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, refreshProfile }}>
+    <AuthContext.Provider value={{ user, token, login, register, logout, refreshProfile, currentUserId }}>
       {children}
     </AuthContext.Provider>
   );

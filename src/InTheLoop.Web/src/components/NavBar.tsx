@@ -11,6 +11,7 @@ export default function NavBar() {
       </Link>
       <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
         <Link to="/families" style={{ color: 'white', textDecoration: 'none' }}>Families</Link>
+        <Link to="/chat" style={{ color: 'white', textDecoration: 'none' }}>Messages</Link>
         {user && (
           <>
             <Link to="/profile" style={{ color: 'white', textDecoration: 'none' }}>Profile</Link>

@@ -6,6 +6,7 @@ import FamiliesPage from './pages/FamiliesPage';
 import CreateFamilyPage from './pages/CreateFamilyPage';
 import FeedPage from './pages/FeedPage';
 import ProfilePage from './pages/ProfilePage';
+import ChatPage from './pages/ChatPage';
 import NavBar from './components/NavBar';
 
 function PrivateRoute({ children }: { children: JSX.Element }) {
@@ -25,6 +26,8 @@ export default function App() {
           <Route path="/families/new" element={<PrivateRoute><CreateFamilyPage /></PrivateRoute>} />
           <Route path="/families/:familyId" element={<PrivateRoute><FeedPage /></PrivateRoute>} />
           <Route path="/feed" element={<PrivateRoute><div>Feed (placeholder)</div></PrivateRoute>} />
+          <Route path="/chat" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
+          <Route path="/chat/:conversationId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
