@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import UserStatus from '../components/UserStatus';
 import * as signalR from '@microsoft/signalr';
 
 interface ChatMessage {
@@ -49,7 +50,7 @@ export default function ChatPage() {
       .withUrl('/hubs/chat', {
         accessTokenFactory: () => token!,
       })
-      .withAutomaticReconnect()
+      .withAutomaticReconnect([0, 2000, 5000, 10000, 20000])
       .build();
 
     hubConnection.on('ReceiveMessage', (data: any) => {
@@ -237,6 +238,9 @@ export default function ChatPage() {
             <div style={{ fontSize: 12, color: '#999' }}>
               {conversation.conversationType === 'family' ? 'Group' : 'Direct Message'}
             </div>
+            {conversation.conversationType === 'dm' && (
+              <UserStatus userId={conversationId?.replace('dm-', '') || ''} userName={conversation.partnerName} />
+            )}
           </div>
         </div>
 

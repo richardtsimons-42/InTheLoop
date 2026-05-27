@@ -10,8 +10,13 @@ export const userApi = {
     return response.data;
   },
 
-  updateProfile: async (firstName: string, lastName: string) => {
-    const response = await api.put('/api/users/me', { firstName, lastName });
+  updateProfile: async (firstName: string, lastName: string, avatarUrl?: string) => {
+    const response = await api.put('/api/users/me', { firstName, lastName, avatarUrl });
+    return response.data;
+  },
+
+  getUserStatus: async (userId: string) => {
+    const response = await api.get(`/api/users/${userId}/status`);
     return response.data;
   },
 

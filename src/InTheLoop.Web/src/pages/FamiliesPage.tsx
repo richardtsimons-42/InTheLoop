@@ -36,9 +36,14 @@ export default function FamiliesPage() {
           <h3>{family.name}</h3>
           <p>{family.description}</p>
           <p>{family.memberCount} members</p>
-          <Link to={`/families/${family.id}`}>
-            <button>Enter Family</button>
-          </Link>
+          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+            <Link to={`/families/${family.id}`}>
+              <button>Enter Family</button>
+            </Link>
+            <Link to={`/families/${family.id}/settings`}>
+              <button>Settings</button>
+            </Link>
+          </div>
         </div>
       ))}
     </div>

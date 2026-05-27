@@ -50,6 +50,17 @@ public class FamiliesController : ControllerBase
             return NotFound(new { message = "Not a member of this family" });
         return Ok(new { message = "Left family successfully" });
     }
+
+    [HttpPut("{familyId}")]
+    public async Task<IActionResult> UpdateFamily(int familyId, [FromBody] UpdateFamilyRequest request)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value!;
+        var result = await _familyService.UpdateFamilyAsync(userId, familyId, request.Name, request.Description, request.CoverPhotoUrl);
+        if (result == null)
+            return NotFound(new { message = "Family not found or not authorized" });
+        return Ok(result);
+    }
 }
 
 public record CreateFamilyRequest(string Name, string? Description);
+public record UpdateFamilyRequest(string? Name, string? Description, string? CoverPhotoUrl);

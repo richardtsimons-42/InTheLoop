@@ -83,6 +83,27 @@ public class FamilyService
         return true;
     }
 
+    public async Task<FamilyDto?> UpdateFamilyAsync(string userId, int familyId, string? name, string? description, string? coverPhotoUrl)
+    {
+        var family = await _context.Families
+            .Include(f => f.Owner)
+            .Include(f => f.Members)
+            .FirstOrDefaultAsync(f => f.Id == familyId);
+
+        if (family == null || family.OwnerId != userId)
+            return null;
+
+        if (!string.IsNullOrEmpty(name))
+            family.Name = name;
+        if (description != null)
+            family.Description = description;
+        if (!string.IsNullOrEmpty(coverPhotoUrl))
+            family.CoverPhotoUrl = coverPhotoUrl;
+
+        await _context.SaveChangesAsync();
+        return MapToDto(family);
+    }
+
     private FamilyDto MapToDto(Family family)
     {
         string ownerName = family.Owner != null

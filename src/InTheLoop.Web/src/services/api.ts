@@ -16,6 +16,9 @@ export const familiesApi = {
   getMyFamilies: () => api.get('/families'),
   createFamily: (name: string, description?: string) => api.post('/families', { name, description }),
   joinFamily: (familyId: number) => api.post(`/families/${familyId}/join`),
+  leaveFamily: (familyId: number) => api.post(`/families/${familyId}/leave`),
+  updateFamily: (familyId: number, name?: string, description?: string, coverPhotoUrl?: string) =>
+    api.put(`/families/${familyId}`, { name, description, coverPhotoUrl }),
 };
 
 export const postsApi = {

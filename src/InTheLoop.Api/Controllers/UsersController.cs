@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using InTheLoop.Api.Services;
-using InTheLoop.Api.DTOs;
+using Microsoft.EntityFrameworkCore;
+using InTheLoop.Api.Data;
+using InTheLoop.Api.Models;
 
 namespace InTheLoop.Api.Controllers;
 
@@ -10,57 +11,83 @@ namespace InTheLoop.Api.Controllers;
 [Authorize]
 public class UsersController : ControllerBase
 {
-    private readonly UserService _userService;
+    private readonly ApplicationDbContext _context;
 
-    public UsersController(UserService userService)
+    public UsersController(ApplicationDbContext context)
     {
-        _userService = userService;
+        _context = context;
     }
 
     [HttpGet("me")]
-    public async Task<IActionResult> GetMyProfile()
+    public async Task<IActionResult> GetCurrentUser()
     {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value!;
-        var profile = await _userService.GetProfileAsync(userId);
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
 
-        if (profile == null)
-            return NotFound(new { message = "User not found" });
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Id == userId);
 
-        return Ok(profile);
+        if (user == null)
+            return NotFound();
+
+        return Ok(new
+        {
+            user.Id,
+            user.Email,
+            user.FirstName,
+            user.LastName,
+            user.AvatarUrl,
+            user.IsVerified,
+            user.CreatedAt,
+            user.IsOnline,
+            user.LastSeen
+        });
+    }
+
+    [HttpGet("{userId}/status")]
+    public async Task<IActionResult> GetUserStatus(string userId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+            return NotFound();
+
+        return Ok(new
+        {
+            user.Id,
+            user.IsOnline,
+            user.LastSeen
+        });
     }
 
     [HttpPut("me")]
-    public async Task<IActionResult> UpdateMyProfile([FromBody] UpdateProfileRequest request)
+    public async Task<IActionResult> UpdateCurrentUser([FromBody] UpdateUserRequest request)
     {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value!;
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
 
-        if (string.IsNullOrWhiteSpace(request.FirstName) || string.IsNullOrWhiteSpace(request.LastName))
-            return BadRequest(new { message = "First name and last name are required" });
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+            return NotFound();
 
-        var profile = await _userService.UpdateProfileAsync(userId, request.FirstName, request.LastName);
+        if (!string.IsNullOrEmpty(request.FirstName))
+            user.FirstName = request.FirstName;
+        if (!string.IsNullOrEmpty(request.LastName))
+            user.LastName = request.LastName;
+        if (!string.IsNullOrEmpty(request.AvatarUrl))
+            user.AvatarUrl = request.AvatarUrl;
 
-        if (profile == null)
-            return NotFound(new { message = "User not found" });
+        await _context.SaveChangesAsync();
 
-        return Ok(profile);
-    }
-
-    [HttpPut("me/avatar")]
-    public async Task<IActionResult> UpdateAvatar([FromBody] UpdateAvatarRequest request)
-    {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value!;
-
-        if (string.IsNullOrWhiteSpace(request.AvatarUrl))
-            return BadRequest(new { message = "Avatar URL is required" });
-
-        var profile = await _userService.UpdateAvatarAsync(userId, request.AvatarUrl);
-
-        if (profile == null)
-            return NotFound(new { message = "User not found" });
-
-        return Ok(profile);
+        return Ok(new
+        {
+            user.Id,
+            user.FirstName,
+            user.LastName,
+            user.AvatarUrl
+        });
     }
 }
 
-public record UpdateProfileRequest(string FirstName, string LastName);
-public record UpdateAvatarRequest(string AvatarUrl);
+public record UpdateUserRequest(string? FirstName, string? LastName, string? AvatarUrl);

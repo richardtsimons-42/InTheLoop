@@ -11,6 +11,8 @@ export interface UserProfile {
   avatarUrl: string | null;
   isVerified: boolean;
   createdAt: string;
+  isOnline: boolean;
+  lastSeen: string | null;
 }
 
 interface AuthContextType {
@@ -21,6 +23,7 @@ interface AuthContextType {
   logout: () => void;
   refreshProfile: () => Promise<void>;
   currentUserId: string | null;
+  updateUserStatus: (isOnline: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -44,6 +47,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem('currentUserId', profile.id);
     } catch {
       setUser(null);
+    }
+  };
+
+  const updateUserStatus = async (isOnline: boolean) => {
+    if (!token) return;
+    try {
+      // Update last seen timestamp
+      const response = await axios.put('/api/users/me', {
+        firstName: user?.firstName,
+        lastName: user?.lastName,
+        avatarUrl: user?.avatarUrl,
+      });
+      if (response.data) {
+        setUser(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to update user status:', error);
     }
   };
 
@@ -82,7 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, refreshProfile, currentUserId }}>
+    <AuthContext.Provider value={{ user, token, login, register, logout, refreshProfile, currentUserId, updateUserStatus }}>
       {children}
     </AuthContext.Provider>
   );

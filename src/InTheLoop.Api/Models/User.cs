@@ -9,4 +9,6 @@ public class User : IdentityUser
     public string? AvatarUrl { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public bool IsVerified { get; set; } = false;
+    public DateTime? LastSeen { get; set; }
+    public bool IsOnline { get; set; } = false;
 }

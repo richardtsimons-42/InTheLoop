@@ -22,6 +22,23 @@ public class ChatHub : Hub
         if (!string.IsNullOrEmpty(userId))
         {
             _userConnections[userId] = Context.ConnectionId;
+            
+            // Update user status to online
+            var user = await _context.Users.FindAsync(userId);
+            if (user != null)
+            {
+                user.IsOnline = true;
+                user.LastSeen = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                
+                // Notify all users about the online status change
+                await Clients.All.SendAsync("UserStatusChanged", new
+                {
+                    UserId = userId,
+                    IsOnline = true,
+                    LastSeen = user.LastSeen
+                });
+            }
         }
         await base.OnConnectedAsync();
     }
@@ -32,6 +49,23 @@ public class ChatHub : Hub
         if (!string.IsNullOrEmpty(userId))
         {
             _userConnections.TryRemove(userId, out _);
+            
+            // Update user status to offline
+            var user = await _context.Users.FindAsync(userId);
+            if (user != null)
+            {
+                user.IsOnline = false;
+                user.LastSeen = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                
+                // Notify all users about the offline status change
+                await Clients.All.SendAsync("UserStatusChanged", new
+                {
+                    UserId = userId,
+                    IsOnline = false,
+                    LastSeen = user.LastSeen
+                });
+            }
         }
         await base.OnDisconnectedAsync(exception);
     }
