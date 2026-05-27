@@ -42,15 +42,15 @@ export default function PostCard({ post }: { post: Post }) {
     }
   };
 
-  const handleReply = async (parentCommentId: number) => {
-    const text = replyTexts[parentCommentId] || '';
+  const handleReply = async (commentId: number) => {
+    const text = replyTexts[commentId] || '';
     if (!text.trim()) return;
     try {
-      await postsApi.addReply(parentCommentId, post.id, text);
+      await postsApi.addReply(commentId, post.id, text);
       setReplyingTo(null);
       setReplyTexts(prev => {
         const next = { ...prev };
-        delete next[parentCommentId];
+        delete next[commentId];
         return next;
       });
       window.dispatchEvent(new CustomEvent('refresh-feed'));
@@ -162,17 +162,16 @@ export default function PostCard({ post }: { post: Post }) {
           {post.comments.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
               {post.comments.filter(c => !c.parentCommentId).map(comment => (
-                <CommentItem
+                <CommentNode
                   key={comment.id}
                   comment={comment}
-                  postId={post.id}
                   replyingTo={replyingTo}
                   replyText={replyingTo === comment.id ? (replyTexts[comment.id] || '') : ''}
-                  onReply={(id) => {
-                    setReplyingTo(replyingTo === id ? null : id);
-                  }}
+                  replyTexts={replyTexts}
+                  onReply={(id) => setReplyingTo(replyingTo === id ? null : id)}
                   onReplyTextChange={(id, text) => setReplyText(id, text)}
                   onSendReply={() => handleReply(comment.id)}
+                  depth={0}
                 />
               ))}
             </div>
@@ -187,31 +186,37 @@ export default function PostCard({ post }: { post: Post }) {
   );
 }
 
-/* --- Comment Item Sub-component --- */
-function CommentItem({
+/* --- Recursive Comment Node — handles any depth of nesting --- */
+function CommentNode({
   comment,
-  postId,
   replyingTo,
   replyText,
+  replyTexts,
   onReply,
   onReplyTextChange,
   onSendReply,
+  depth,
 }: {
   comment: Comment;
-  postId: number;
   replyingTo: number | null;
   replyText: string;
+  replyTexts: Record<number, string>;
   onReply: (id: number) => void;
   onReplyTextChange: (id: number, text: string) => void;
   onSendReply: () => void;
+  depth: number;
 }) {
+  const indent = depth * 24;
+
   return (
     <div style={{
       display: 'flex',
       gap: 'var(--space-md)',
       padding: 'var(--space-md)',
-      backgroundColor: 'var(--color-surface)',
+      backgroundColor: depth === 0 ? 'var(--color-surface)' : 'var(--color-bg)',
       borderRadius: 'var(--radius-md)',
+      borderLeft: depth > 0 ? `3px solid var(--color-border-light)` : 'none',
+      marginLeft: depth > 0 ? indent : 0,
     }}>
       <div className="avatar avatar-sm" style={{
         background: 'var(--color-brand-gradient)',
@@ -234,7 +239,7 @@ function CommentItem({
           Reply
         </button>
 
-        {/* Reply Input — shown when replying to this comment */}
+        {/* Reply Input */}
         {replyingTo === comment.id && (
           <div style={{ marginTop: 'var(--space-md)', display: 'flex', gap: 'var(--space-sm)' }}>
             <input
@@ -250,85 +255,25 @@ function CommentItem({
           </div>
         )}
 
-        {/* Nested Replies */}
+        {/* Nested Replies — recursive */}
         {comment.replies?.length > 0 && (
           <div style={{ marginTop: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
             {comment.replies.map(reply => (
-              <ReplyItem
+              <CommentNode
                 key={reply.id}
-                reply={reply}
-                postId={postId}
-                parentCommentId={comment.id}
+                comment={reply}
                 replyingTo={replyingTo}
-                replyText={replyingTo === comment.id ? (replyTexts[comment.id] || '') : ''}
-                onReply={(parentId) => onReply(parentId)}
-                onReplyTextChange={(parentId, text) => onReplyTextChange(parentId, text)}
-                onSendReply={() => onSendReply()}
+                replyText={replyingTo === reply.id ? (replyTexts[reply.id] || '') : ''}
+                replyTexts={replyTexts}
+                onReply={onReply}
+                onReplyTextChange={onReplyTextChange}
+                onSendReply={onSendReply}
+                depth={depth + 1}
               />
             ))}
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-/* --- Nested Reply Item --- */
-function ReplyItem({
-  reply,
-  postId,
-  parentCommentId,
-  replyingTo,
-  replyText,
-  onReply,
-  onReplyTextChange,
-  onSendReply,
-}: {
-  reply: Comment;
-  postId: number;
-  parentCommentId: number;
-  replyingTo: number | null;
-  replyText: string;
-  onReply: (id: number) => void;
-  onReplyTextChange: (id: number, text: string) => void;
-  onSendReply: () => void;
-}) {
-  return (
-    <div style={{
-      marginLeft: 'var(--space-lg)',
-      padding: 'var(--space-sm) var(--space-md)',
-      backgroundColor: 'var(--color-bg)',
-      borderRadius: 'var(--radius-sm)',
-      fontSize: 13,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: '2px' }}>
-        <strong>{reply.authorName}</strong>
-        <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{getTimeAgo(reply.createdAt)}</span>
-      </div>
-      <div style={{ marginBottom: 'var(--space-xs)' }}>{reply.content}</div>
-      <button
-        onClick={() => onReply(parentCommentId)}
-        className="btn btn-ghost"
-        style={{ fontSize: 11, padding: 'var(--space-xs) var(--space-sm)' }}
-      >
-        Reply
-      </button>
-
-      {/* Reply input for nested replies — shows on the parent comment */}
-      {replyingTo === parentCommentId && (
-        <div style={{ marginTop: 'var(--space-sm)', display: 'flex', gap: 'var(--space-sm)' }}>
-          <input
-            type="text"
-            className="input"
-            placeholder="Write a reply..."
-            value={replyText}
-            onChange={e => onReplyTextChange(parentCommentId, e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && onSendReply()}
-            style={{ fontSize: 12, padding: 'var(--space-xs) var(--space-sm)' }}
-          />
-          <button onClick={onSendReply} className="btn btn-primary btn-sm">Reply</button>
-        </div>
-      )}
     </div>
   );
 }

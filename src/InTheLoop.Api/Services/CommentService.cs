@@ -26,27 +26,50 @@ public class CommentService
         _context.Comments.Add(comment);
         await _context.SaveChangesAsync();
 
-        // Load navigation properties - avoid circular references
+        // Load navigation properties
         await _context.Entry(comment).Reference(c => c.Author).LoadAsync();
         if (parentCommentId.HasValue)
         {
             await _context.Entry(comment).Reference(c => c.ParentComment).LoadAsync();
         }
-        // Don't load Replies to avoid circular reference on reply creation
-        await _context.Entry(comment).Collection(c => c.Replies).LoadAsync();
 
         return comment;
     }
 
     public async Task<IEnumerable<Comment>> GetCommentsAsync(int postId)
     {
-        return await _context.Comments
-            .Where(c => c.PostId == postId && c.ParentCommentId == null)
+        // Load ALL comments for the post with full nesting
+        var allComments = await _context.Comments
+            .Where(c => c.PostId == postId)
             .Include(c => c.Author)
             .Include(c => c.Replies)
                 .ThenInclude(r => r.Author)
             .OrderBy(c => c.CreatedAt)
             .ToListAsync();
+
+        // Build nested structure: group by parentCommentId
+        var commentDict = allComments.ToDictionary(c => c.Id);
+        var topLevel = new List<Comment>();
+
+        foreach (var comment in allComments)
+        {
+            if (comment.ParentCommentId == null || !commentDict.ContainsKey(comment.ParentCommentId.Value))
+            {
+                // Top-level comment or parent not found
+                topLevel.Add(comment);
+            }
+            else
+            {
+                // Add to parent's replies list
+                var parent = commentDict[comment.ParentCommentId.Value];
+                if (!parent.Replies.Any(r => r.Id == comment.Id))
+                {
+                    parent.Replies.Add(comment);
+                }
+            }
+        }
+
+        return topLevel;
     }
 
     public async Task<Comment?> GetCommentAsync(int commentId)
