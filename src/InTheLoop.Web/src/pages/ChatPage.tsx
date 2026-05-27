@@ -31,7 +31,11 @@ export default function ChatPage() {
   const hubConnectionRef = useRef<signalR.HubConnection | null>(null);
 
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId) {
+      // No conversation selected - load conversations list and set loading to false
+      setLoading(false);
+      return;
+    }
 
     // Load conversation info
     loadConversationInfo();
@@ -42,7 +46,7 @@ export default function ChatPage() {
     // Setup SignalR
     const token = localStorage.getItem('token');
     const hubConnection = new signalR.HubConnectionBuilder()
-      .withUrl('http://localhost:5000/hubs/chat', {
+      .withUrl('/hubs/chat', {
         accessTokenFactory: () => token!,
       })
       .withAutomaticReconnect()
@@ -94,7 +98,7 @@ export default function ChatPage() {
   const loadConversationInfo = async () => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('http://localhost:5000/api/contacts', {
+      const res = await fetch('/api/contacts', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -111,7 +115,7 @@ export default function ChatPage() {
     if (!conversationId) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`http://localhost:5000/api/contacts/${conversationId}`, {
+      const res = await fetch(`/api/contacts/${conversationId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -140,7 +144,7 @@ export default function ChatPage() {
       } else {
         // Send DM via REST
         const otherId = conversationId?.replace('dm-', '');
-        const res = await fetch('http://localhost:5000/api/messages', {
+        const res = await fetch('/api/messages', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -181,6 +185,15 @@ export default function ChatPage() {
   };
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading chat...</div>;
+  if (!conversationId) {
+    // No conversation selected - show list of conversations
+    return (
+      <div style={{ maxWidth: 600, margin: '40px auto', padding: 20 }}>
+        <h1>Messages</h1>
+        <p style={{ color: '#999', textAlign: 'center' }}>Select a conversation to start chatting</p>
+      </div>
+    );
+  }
   if (!conversation) return <div style={{ padding: 40, textAlign: 'center' }}>Conversation not found</div>;
 
   return (

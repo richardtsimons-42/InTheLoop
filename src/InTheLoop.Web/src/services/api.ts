@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: '/api',
 });
 
 api.interceptors.request.use(config => {
@@ -31,7 +31,7 @@ export const postsApi = {
 };
 
 export const messagesApi = {
-  send: (recipientId?: string, familyId?: number, content: string) =>
+  send: (content: string, recipientId?: string, familyId?: number) =>
     api.post('/messages', { recipientId, familyId, content }),
   getConversation: (recipientId?: string, familyId?: number) =>
     api.get('/messages/conversation', { params: { recipientId, familyId } }),

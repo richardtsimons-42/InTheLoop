@@ -1,7 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import axios from 'axios';
-import { authApi } from './api';
-import { userApi } from './userApi';
+import { authApi } from '../services/api';
+import { userApi } from '../services/userApi';
 
 export interface UserProfile {
   id: string;
@@ -30,8 +30,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  axios.defaults.baseURL = 'http://localhost:5000';
-  axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  axios.defaults.headers.common['Authorization'] = token ? `Bearer ${token}` : '';
 
   const refreshProfile = async () => {
     if (!token) {

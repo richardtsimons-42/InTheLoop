@@ -16,9 +16,9 @@ function PrivateRoute({ children }: { children: JSX.Element }) {
 
 export default function App() {
   return (
-    <>
-      <NavBar />
-      <BrowserRouter>
+    <BrowserRouter>
+      <>
+        <NavBar />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -31,7 +31,7 @@ export default function App() {
           <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
-      </BrowserRouter>
-    </>
+      </>
+    </BrowserRouter>
   );
 }
