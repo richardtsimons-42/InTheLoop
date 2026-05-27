@@ -59,6 +59,7 @@ builder.Services.AddScoped<PostService>();
 builder.Services.AddScoped<PhotoService>();
 builder.Services.AddScoped<MessageService>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<CommentService>();
 
 // Add SignalR
 builder.Services.AddSignalR();

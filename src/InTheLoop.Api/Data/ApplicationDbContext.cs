@@ -14,6 +14,7 @@ public class ApplicationDbContext : IdentityDbContext<User>
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<Photo> Photos => Set<Photo>();
     public DbSet<Message> Messages => Set<Message>();
+    public DbSet<Comment> Comments => Set<Comment>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -56,5 +57,21 @@ public class ApplicationDbContext : IdentityDbContext<User>
             .HasOne(m => m.Recipient)
             .WithMany()
             .HasForeignKey(m => m.RecipientId);
+
+        builder.Entity<Comment>()
+            .HasOne(c => c.Author)
+            .WithMany()
+            .HasForeignKey(c => c.AuthorId);
+
+        builder.Entity<Comment>()
+            .HasOne(c => c.Post)
+            .WithMany(p => p.Comments)
+            .HasForeignKey(c => c.PostId);
+
+        builder.Entity<Comment>()
+            .HasOne(c => c.ParentComment)
+            .WithMany(c => c.Replies)
+            .HasForeignKey(c => c.ParentCommentId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

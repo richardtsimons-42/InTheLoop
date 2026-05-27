@@ -31,6 +31,9 @@ export const postsApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  getComments: (postId: number) => api.get(`/comments/posts/${postId}`),
+  addComment: (postId: number, content: string) => api.post(`/comments/posts/${postId}`, { content }),
+  addReply: (commentId: number, postId: number, content: string) => api.post(`/comments/${commentId}/reply`, { postId, content }),
 };
 
 export const messagesApi = {
