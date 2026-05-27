@@ -29,33 +29,38 @@ export default function PostCard({ post }: { post: Post }) {
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
-  const [commentingOn, setCommentingOn] = useState<number | null>(null);
-  const [replyText, setReplyText] = useState('');
+  const [replyTexts, setReplyTexts] = useState<Record<number, string>>({});
 
   const handleComment = async () => {
     if (!commentText.trim()) return;
     try {
       await postsApi.addComment(post.id, commentText);
       setCommentText('');
-      // Refresh comments
-      const commentsRes = await postsApi.getComments(post.id);
-      // We need to update the parent component — use a custom event
       window.dispatchEvent(new CustomEvent('refresh-feed'));
     } catch (error) {
       console.error('Failed to add comment:', error);
     }
   };
 
-  const handleReply = async (commentId: number) => {
-    if (!replyText.trim()) return;
+  const handleReply = async (parentCommentId: number) => {
+    const text = replyTexts[parentCommentId] || '';
+    if (!text.trim()) return;
     try {
-      await postsApi.addReply(commentId, post.id, replyText);
+      await postsApi.addReply(parentCommentId, post.id, text);
       setReplyingTo(null);
-      setReplyText('');
+      setReplyTexts(prev => {
+        const next = { ...prev };
+        delete next[parentCommentId];
+        return next;
+      });
       window.dispatchEvent(new CustomEvent('refresh-feed'));
     } catch (error) {
       console.error('Failed to add reply:', error);
     }
+  };
+
+  const setReplyText = (commentId: number, text: string) => {
+    setReplyTexts(prev => ({ ...prev, [commentId]: text }));
   };
 
   return (
@@ -161,12 +166,12 @@ export default function PostCard({ post }: { post: Post }) {
                   key={comment.id}
                   comment={comment}
                   postId={post.id}
-                  onReply={(commentId) => {
-                    setReplyingTo(replyingTo === commentId ? null : commentId);
-                    setCommentingOn(commentingOn === commentId ? null : commentId);
+                  replyingTo={replyingTo}
+                  replyText={replyingTo === comment.id ? (replyTexts[comment.id] || '') : ''}
+                  onReply={(id) => {
+                    setReplyingTo(replyingTo === id ? null : id);
                   }}
-                  replyText={replyingTo === comment.id ? replyText : ''}
-                  setReplyText={setReplyText}
+                  onReplyTextChange={(id, text) => setReplyText(id, text)}
                   onSendReply={() => handleReply(comment.id)}
                 />
               ))}
@@ -186,16 +191,18 @@ export default function PostCard({ post }: { post: Post }) {
 function CommentItem({
   comment,
   postId,
-  onReply,
+  replyingTo,
   replyText,
-  setReplyText,
+  onReply,
+  onReplyTextChange,
   onSendReply,
 }: {
   comment: Comment;
   postId: number;
-  onReply: (id: number) => void;
+  replyingTo: number | null;
   replyText: string;
-  setReplyText: (text: string) => void;
+  onReply: (id: number) => void;
+  onReplyTextChange: (id: number, text: string) => void;
   onSendReply: () => void;
 }) {
   return (
@@ -227,15 +234,15 @@ function CommentItem({
           Reply
         </button>
 
-        {/* Reply Input */}
-        {replyText !== undefined && (
+        {/* Reply Input — shown when replying to this comment */}
+        {replyingTo === comment.id && (
           <div style={{ marginTop: 'var(--space-md)', display: 'flex', gap: 'var(--space-sm)' }}>
             <input
               type="text"
               className="input"
               placeholder="Write a reply..."
               value={replyText}
-              onChange={e => setReplyText(e.target.value)}
+              onChange={e => onReplyTextChange(comment.id, e.target.value)}
               onKeyDown={e => e.key === 'Enter' && onSendReply()}
               style={{ fontSize: 13, padding: 'var(--space-sm) var(--space-md)' }}
             />
@@ -247,23 +254,81 @@ function CommentItem({
         {comment.replies?.length > 0 && (
           <div style={{ marginTop: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
             {comment.replies.map(reply => (
-              <div key={reply.id} style={{
-                marginLeft: 'var(--space-lg)',
-                padding: 'var(--space-sm) var(--space-md)',
-                backgroundColor: 'var(--color-bg)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: 13,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: '2px' }}>
-                  <strong>{reply.authorName}</strong>
-                  <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{getTimeAgo(reply.createdAt)}</span>
-                </div>
-                {reply.content}
-              </div>
+              <ReplyItem
+                key={reply.id}
+                reply={reply}
+                postId={postId}
+                parentCommentId={comment.id}
+                replyingTo={replyingTo}
+                replyText={replyingTo === comment.id ? (replyTexts[comment.id] || '') : ''}
+                onReply={(parentId) => onReply(parentId)}
+                onReplyTextChange={(parentId, text) => onReplyTextChange(parentId, text)}
+                onSendReply={() => onSendReply()}
+              />
             ))}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* --- Nested Reply Item --- */
+function ReplyItem({
+  reply,
+  postId,
+  parentCommentId,
+  replyingTo,
+  replyText,
+  onReply,
+  onReplyTextChange,
+  onSendReply,
+}: {
+  reply: Comment;
+  postId: number;
+  parentCommentId: number;
+  replyingTo: number | null;
+  replyText: string;
+  onReply: (id: number) => void;
+  onReplyTextChange: (id: number, text: string) => void;
+  onSendReply: () => void;
+}) {
+  return (
+    <div style={{
+      marginLeft: 'var(--space-lg)',
+      padding: 'var(--space-sm) var(--space-md)',
+      backgroundColor: 'var(--color-bg)',
+      borderRadius: 'var(--radius-sm)',
+      fontSize: 13,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: '2px' }}>
+        <strong>{reply.authorName}</strong>
+        <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{getTimeAgo(reply.createdAt)}</span>
+      </div>
+      <div style={{ marginBottom: 'var(--space-xs)' }}>{reply.content}</div>
+      <button
+        onClick={() => onReply(parentCommentId)}
+        className="btn btn-ghost"
+        style={{ fontSize: 11, padding: 'var(--space-xs) var(--space-sm)' }}
+      >
+        Reply
+      </button>
+
+      {/* Reply input for nested replies — shows on the parent comment */}
+      {replyingTo === parentCommentId && (
+        <div style={{ marginTop: 'var(--space-sm)', display: 'flex', gap: 'var(--space-sm)' }}>
+          <input
+            type="text"
+            className="input"
+            placeholder="Write a reply..."
+            value={replyText}
+            onChange={e => onReplyTextChange(parentCommentId, e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && onSendReply()}
+            style={{ fontSize: 12, padding: 'var(--space-xs) var(--space-sm)' }}
+          />
+          <button onClick={onSendReply} className="btn btn-primary btn-sm">Reply</button>
+        </div>
+      )}
     </div>
   );
 }

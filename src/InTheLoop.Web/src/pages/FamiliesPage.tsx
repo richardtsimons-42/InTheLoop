@@ -12,6 +12,7 @@ interface Family {
   memberCount: number;
   coverPhotoUrl: string | null;
   createdAt: string;
+  userRole: string;
 }
 
 export default function FamiliesPage() {
@@ -36,6 +37,11 @@ export default function FamiliesPage() {
   const formatJoinedDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const getRoleBadge = (role: string) => {
+    if (role === 'admin') return <span className="badge" style={{ background: 'var(--color-warning)', color: '#000', marginLeft: 'var(--space-xs)' }}>👑 Co-owner</span>;
+    return null;
   };
 
   if (loading) {
@@ -125,6 +131,7 @@ export default function FamiliesPage() {
 
                 <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginBottom: 'var(--space-lg)' }}>
                   Owner: {family.ownerName} · Joined {formatJoinedDate(family.createdAt)}
+                  {getRoleBadge(family.userRole)}
                 </p>
 
                 <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>

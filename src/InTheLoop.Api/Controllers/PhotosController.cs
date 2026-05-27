@@ -12,10 +12,12 @@ namespace InTheLoop.Api.Controllers;
 public class PhotosController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IWebHostEnvironment _env;
 
-    public PhotosController(ApplicationDbContext context)
+    public PhotosController(ApplicationDbContext context, IWebHostEnvironment env)
     {
         _context = context;
+        _env = env;
     }
 
     [HttpGet("family/{familyId}")]
@@ -72,6 +74,29 @@ public class PhotosController : ControllerBase
             photo.UploadedAt,
             PostId = photo.PostId
         });
+    }
+
+    [HttpGet("file/{fileName}")]
+    public IActionResult GetPhotoFile(string fileName)
+    {
+        var uploads = Path.Combine(_env.ContentRootPath, "uploads");
+        var filePath = Path.Combine(uploads, fileName);
+
+        if (!System.IO.File.Exists(filePath))
+            return NotFound();
+
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        string contentType = extension switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".gif" => "image/gif",
+            ".webp" => "image/webp",
+            ".svg" => "image/svg+xml",
+            _ => "application/octet-stream"
+        };
+
+        return PhysicalFile(filePath, contentType);
     }
 
     [HttpDelete("{id}")]

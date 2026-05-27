@@ -35,7 +35,7 @@ public class FamilyService
         _context.FamilyMembers.Add(member);
         await _context.SaveChangesAsync();
 
-        return MapToDto(family);
+        return MapToDto(family, ownerId);
     }
 
     public async Task<IEnumerable<FamilyDto>> GetUserFamiliesAsync(string userId)
@@ -50,7 +50,7 @@ public class FamilyService
             .Where(f => familyIds.Contains(f.Id))
             .ToListAsync();
 
-        return families.Select(MapToDto);
+        return families.Select(f => MapToDto(f, userId));
     }
 
     public async Task<bool> JoinFamilyAsync(string userId, int familyId)
@@ -78,6 +78,13 @@ public class FamilyService
 
         if (member == null) return false;
 
+        // Prevent the last admin from leaving
+        var adminCount = await _context.FamilyMembers
+            .CountAsync(fm => fm.FamilyId == familyId && fm.Role == "admin");
+
+        if (adminCount <= 1 && member.Role == "admin")
+            return false;
+
         _context.FamilyMembers.Remove(member);
         await _context.SaveChangesAsync();
         return true;
@@ -90,7 +97,14 @@ public class FamilyService
             .Include(f => f.Members)
             .FirstOrDefaultAsync(f => f.Id == familyId);
 
-        if (family == null || family.OwnerId != userId)
+        if (family == null)
+            return null;
+
+        // Allow owners AND admins (co-owners) to update
+        var member = await _context.FamilyMembers
+            .FirstOrDefaultAsync(fm => fm.UserId == userId && fm.FamilyId == familyId);
+
+        if (member == null || (member.Role != "admin" && family.OwnerId != userId))
             return null;
 
         if (!string.IsNullOrEmpty(name))
@@ -101,16 +115,23 @@ public class FamilyService
             family.CoverPhotoUrl = coverPhotoUrl;
 
         await _context.SaveChangesAsync();
-        return MapToDto(family);
+        return MapToDto(family, userId);
     }
 
-    public async Task<bool> InviteMemberAsync(string ownerUserId, int familyId, string inviteeEmail)
+    public async Task<bool> InviteMemberAsync(string userId, int familyId, string inviteeEmail)
     {
         var family = await _context.Families
             .Include(f => f.Members)
             .FirstOrDefaultAsync(f => f.Id == familyId);
 
-        if (family == null || family.OwnerId != ownerUserId)
+        if (family == null)
+            return false;
+
+        // Allow owners AND admins (co-owners) to invite
+        var member = await _context.FamilyMembers
+            .FirstOrDefaultAsync(fm => fm.UserId == userId && fm.FamilyId == familyId);
+
+        if (member == null || (member.Role != "admin" && family.OwnerId != userId))
             return false;
 
         // Check if invitee is already a member
@@ -124,22 +145,128 @@ public class FamilyService
         if (alreadyMember)
             return false;
 
-        var member = new FamilyMember
+        var newMember = new FamilyMember
         {
             UserId = invitee.Id,
             FamilyId = familyId,
             Role = "member"
         };
-        _context.FamilyMembers.Add(member);
+        _context.FamilyMembers.Add(newMember);
         await _context.SaveChangesAsync();
         return true;
     }
 
-    private FamilyDto MapToDto(Family family)
+    public async Task<bool> PromoteMemberAsync(string requestingUserId, int familyId, string targetUserId)
+    {
+        var family = await _context.Families
+            .Include(f => f.Members)
+            .FirstOrDefaultAsync(f => f.Id == familyId);
+
+        if (family == null)
+            return false;
+
+        // Only the owner can promote members (co-owners can't promote others)
+        if (family.OwnerId != requestingUserId)
+            return false;
+
+        // Can't promote the owner
+        if (targetUserId == family.OwnerId)
+            return false;
+
+        var targetMember = await _context.FamilyMembers
+            .FirstOrDefaultAsync(fm => fm.UserId == targetUserId && fm.FamilyId == familyId);
+
+        if (targetMember == null)
+            return false;
+
+        targetMember.Role = "admin";
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> DemoteMemberAsync(string requestingUserId, int familyId, string targetUserId)
+    {
+        var family = await _context.Families
+            .Include(f => f.Members)
+            .FirstOrDefaultAsync(f => f.Id == familyId);
+
+        if (family == null)
+            return false;
+
+        // Only the owner can demote members
+        if (family.OwnerId != requestingUserId)
+            return false;
+
+        // Can't demote the owner
+        if (targetUserId == family.OwnerId)
+            return false;
+
+        var targetMember = await _context.FamilyMembers
+            .FirstOrDefaultAsync(fm => fm.UserId == targetUserId && fm.FamilyId == familyId);
+
+        if (targetMember == null)
+            return false;
+
+        // Ensure at least one admin remains
+        var adminCount = await _context.FamilyMembers
+            .CountAsync(fm => fm.FamilyId == familyId && fm.Role == "admin");
+
+        if (adminCount <= 1)
+            return false;
+
+        targetMember.Role = "member";
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> RemoveMemberAsync(string requestingUserId, int familyId, string targetUserId)
+    {
+        var family = await _context.Families
+            .Include(f => f.Members)
+            .FirstOrDefaultAsync(f => f.Id == familyId);
+
+        if (family == null)
+            return false;
+
+        // Only the owner can remove members (co-owners can't remove others)
+        if (family.OwnerId != requestingUserId)
+            return false;
+
+        // Can't remove the owner
+        if (targetUserId == family.OwnerId)
+            return false;
+
+        var targetMember = await _context.FamilyMembers
+            .FirstOrDefaultAsync(fm => fm.UserId == targetUserId && fm.FamilyId == familyId);
+
+        if (targetMember == null)
+            return false;
+
+        _context.FamilyMembers.Remove(targetMember);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<IEnumerable<FamilyMemberDto>> GetFamilyMembersAsync(int familyId)
+    {
+        var members = await _context.FamilyMembers
+            .Include(fm => fm.User)
+            .Where(fm => fm.FamilyId == familyId)
+            .ToListAsync();
+
+        return members.Select(MapToMemberDto);
+    }
+
+    private FamilyDto MapToDto(Family family, string currentUserId)
     {
         string ownerName = family.Owner != null
             ? $"{family.Owner.FirstName} {family.Owner.LastName}"
             : "";
+
+        // Find current user's role
+        var currentMember = family.Members?.FirstOrDefault(m => m.UserId == currentUserId);
+        string userRole = currentMember?.Role ?? "none";
+
         return new FamilyDto(
             family.Id,
             family.Name,
@@ -147,6 +274,18 @@ public class FamilyService
             ownerName,
             family.Members?.Count ?? 0,
             family.CoverPhotoUrl,
-            family.CreatedAt);
+            family.CreatedAt,
+            userRole);
+    }
+
+    private FamilyMemberDto MapToMemberDto(FamilyMember member)
+    {
+        return new FamilyMemberDto(
+            member.Id,
+            member.UserId,
+            member.User != null ? $"{member.User.FirstName} {member.User.LastName}" : "",
+            member.User?.AvatarUrl,
+            member.Role,
+            member.JoinedAt);
     }
 }

@@ -7,7 +7,8 @@ public record FamilyDto(
     string OwnerName,
     int MemberCount,
     string? CoverPhotoUrl,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string UserRole = "member");
 
 public record PostDto(
     int Id,
@@ -18,3 +19,11 @@ public record PostDto(
     string FamilyName,
     List<string> PhotoUrls,
     DateTime CreatedAt);
+
+public record FamilyMemberDto(
+    int Id,
+    string UserId,
+    string Name,
+    string? AvatarUrl,
+    string Role,
+    DateTime JoinedAt);

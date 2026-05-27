@@ -20,6 +20,10 @@ export const familiesApi = {
   updateFamily: (familyId: number, name?: string, description?: string, coverPhotoUrl?: string) =>
     api.put(`/families/${familyId}`, { name, description, coverPhotoUrl }),
   inviteMember: (familyId: number, email: string) => api.post(`/families/${familyId}/invite`, { email }),
+  getFamilyMembers: (familyId: number) => api.get(`/families/${familyId}/members`),
+  promoteMember: (familyId: number, userId: string) => api.post(`/families/${familyId}/promote`, { userId }),
+  demoteMember: (familyId: number, userId: string) => api.post(`/families/${familyId}/demote`, { userId }),
+  removeMember: (familyId: number, userId: string) => api.post(`/families/${familyId}/remove`, { userId }),
 };
 
 export const postsApi = {

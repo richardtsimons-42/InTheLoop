@@ -30,7 +30,7 @@ public class PhotoService
         var photo = new Photo
         {
             PostId = postId,
-            Url = $"/uploads/{fileName}"
+            Url = $"/api/photos/file/{fileName}"
         };
 
         _context.Photos.Add(photo);

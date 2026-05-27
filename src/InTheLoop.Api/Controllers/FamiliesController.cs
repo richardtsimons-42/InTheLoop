@@ -33,6 +33,13 @@ public class FamiliesController : ControllerBase
         return Ok(families);
     }
 
+    [HttpGet("{familyId}/members")]
+    public async Task<IActionResult> GetFamilyMembers(int familyId)
+    {
+        var members = await _familyService.GetFamilyMembersAsync(familyId);
+        return Ok(members);
+    }
+
     [HttpPost("{familyId}/join")]
     public async Task<IActionResult> JoinFamily(int familyId)
     {
@@ -70,8 +77,41 @@ public class FamiliesController : ControllerBase
             return BadRequest(new { message = "Failed to invite member. User may not exist or already a member." });
         return Ok(new { message = "Member invited successfully" });
     }
+
+    [HttpPost("{familyId}/promote")]
+    public async Task<IActionResult> PromoteMember(int familyId, [FromBody] PromoteMemberRequest request)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value!;
+        var result = await _familyService.PromoteMemberAsync(userId, familyId, request.UserId);
+        if (!result)
+            return BadRequest(new { message = "Failed to promote member. Only the owner can promote, and you can't promote yourself." });
+        return Ok(new { message = "Member promoted to co-owner" });
+    }
+
+    [HttpPost("{familyId}/demote")]
+    public async Task<IActionResult> DemoteMember(int familyId, [FromBody] DemoteMemberRequest request)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value!;
+        var result = await _familyService.DemoteMemberAsync(userId, familyId, request.UserId);
+        if (!result)
+            return BadRequest(new { message = "Failed to demote member. Only the owner can demote, and at least one admin must remain." });
+        return Ok(new { message = "Member demoted to regular member" });
+    }
+
+    [HttpPost("{familyId}/remove")]
+    public async Task<IActionResult> RemoveMember(int familyId, [FromBody] RemoveMemberRequest request)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value!;
+        var result = await _familyService.RemoveMemberAsync(userId, familyId, request.UserId);
+        if (!result)
+            return BadRequest(new { message = "Failed to remove member. Only the owner can remove, and you can't remove yourself." });
+        return Ok(new { message = "Member removed from family" });
+    }
 }
 
 public record CreateFamilyRequest(string Name, string? Description);
 public record UpdateFamilyRequest(string? Name, string? Description, string? CoverPhotoUrl);
 public record InviteMemberRequest(string Email);
+public record PromoteMemberRequest(string UserId);
+public record DemoteMemberRequest(string UserId);
+public record RemoveMemberRequest(string UserId);
