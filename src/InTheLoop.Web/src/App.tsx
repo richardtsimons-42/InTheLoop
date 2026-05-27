@@ -27,7 +27,7 @@ export default function App() {
           <Route path="/families/new" element={<PrivateRoute><CreateFamilyPage /></PrivateRoute>} />
           <Route path="/families/:familyId/settings" element={<PrivateRoute><FamilySettingsPage /></PrivateRoute>} />
           <Route path="/families/:familyId" element={<PrivateRoute><FeedPage /></PrivateRoute>} />
-          <Route path="/feed" element={<PrivateRoute><div>Feed (placeholder)</div></PrivateRoute>} />
+          <Route path="/feed" element={<PrivateRoute><FeedPage /></PrivateRoute>} />
           <Route path="/chat" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
           <Route path="/chat/:conversationId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />

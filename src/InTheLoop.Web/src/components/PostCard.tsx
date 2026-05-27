@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { postsApi } from '../services/api';
+import '../index.css';
 
 interface Comment {
   id: number;
   content: string;
   authorName: string;
   authorAvatar: string | null;
+  postId: number;
   parentCommentId: number | null;
   replies: Comment[];
   createdAt: string;
@@ -26,127 +29,238 @@ export default function PostCard({ post }: { post: Post }) {
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
-
-  const timeAgo = getTimeAgo(post.createdAt);
+  const [commentingOn, setCommentingOn] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState('');
 
   const handleComment = async () => {
     if (!commentText.trim()) return;
     try {
       await postsApi.addComment(post.id, commentText);
       setCommentText('');
-      setReplyingTo(null);
       // Refresh comments
       const commentsRes = await postsApi.getComments(post.id);
-      setPosts(prev => prev.map(p => 
-        p.id === post.id ? { ...p, comments: commentsRes.data || [] } : p
-      ));
+      // We need to update the parent component — use a custom event
+      window.dispatchEvent(new CustomEvent('refresh-feed'));
     } catch (error) {
       console.error('Failed to add comment:', error);
-      alert('Failed to add comment');
     }
   };
 
   const handleReply = async (commentId: number) => {
-    if (!commentText.trim()) return;
+    if (!replyText.trim()) return;
     try {
-      await postsApi.addReply(commentId, post.id, commentText);
+      await postsApi.addReply(commentId, post.id, replyText);
       setReplyingTo(null);
-      setCommentText('');
-      // Refresh comments
-      const commentsRes = await postsApi.getComments(post.id);
-      setPosts(prev => prev.map(p => 
-        p.id === post.id ? { ...p, comments: commentsRes.data || [] } : p
-      ));
+      setReplyText('');
+      window.dispatchEvent(new CustomEvent('refresh-feed'));
     } catch (error) {
       console.error('Failed to add reply:', error);
-      alert('Failed to add reply');
     }
   };
 
-  const renderComments = (comments: Comment[], depth = 0) => {
-    return comments.map(comment => (
-      <div key={comment.id} style={{ marginLeft: depth * 20, marginTop: 10, padding: 10, backgroundColor: depth > 0 ? '#f5f5f5' : 'transparent', borderRadius: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 5 }}>
-          {comment.authorAvatar && <img src={comment.authorAvatar} alt="" style={{ width: 24, height: 24, borderRadius: '50%', marginRight: 8 }} />}
-          <strong style={{ fontSize: 14 }}>{comment.authorName}</strong>
-          <span style={{ color: '#999', fontSize: 12, marginLeft: 8 }}>{getTimeAgo(comment.createdAt)}</span>
+  return (
+    <div className="card fade-in" style={{ marginBottom: 'var(--space-lg)', padding: 0, overflow: 'hidden' }}>
+      {/* Author Header */}
+      <div style={{ padding: 'var(--space-lg) var(--space-xl)', display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+        <div className="avatar" style={{ background: 'var(--color-brand-gradient)' }}>
+          {post.authorAvatar ? (
+            <img src={post.authorAvatar} alt="" />
+          ) : (
+            post.authorName?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+          )}
         </div>
-        <p style={{ margin: '5px 0', fontSize: 14 }}>{comment.content}</p>
-        <button
-          onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
-          style={{ fontSize: 12, color: '#3498db', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-        >
-          Reply
-        </button>
-        {replyingTo === comment.id && (
-          <div style={{ marginTop: 8 }}>
-            <input
-              type="text"
-              placeholder="Write a reply..."
-              value={commentText}
-              onChange={e => setCommentText(e.target.value)}
-              style={{ width: '100%', padding: 8, fontSize: 14, border: '1px solid #ddd', borderRadius: 4, boxSizing: 'border-box' }}
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{post.authorName}</div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+            {getTimeAgo(post.createdAt)} · {post.familyName}
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ padding: '0 var(--space-xl) var(--space-lg)' }}>
+        <p style={{ fontSize: 15, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          {post.content}
+        </p>
+
+        {/* Photos */}
+        {post.photoUrls.length > 0 && (
+          <div style={{
+            marginTop: 'var(--space-md)',
+            borderRadius: 'var(--radius-md)',
+            overflow: 'hidden',
+            maxHeight: 400,
+          }}>
+            <img
+              src={post.photoUrls[0]}
+              alt="Post photo"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
-            <button
-              onClick={() => handleReply(comment.id)}
-              style={{ marginTop: 5, padding: '4px 12px', fontSize: 12, backgroundColor: '#3498db', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-            >
-              Reply
-            </button>
           </div>
         )}
-        {comment.replies && comment.replies.length > 0 && renderComments(comment.replies, depth + 1)}
       </div>
-    ));
-  };
 
-  return (
-    <div style={{ border: '1px solid #eee', padding: 16, marginBottom: 12, borderRadius: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        {post.authorAvatar && <img src={post.authorAvatar} alt="" style={{ width: 40, height: 40, borderRadius: '50%' }} />}
-        <div>
-          <strong>{post.authorName}</strong>
-          <span style={{ color: '#666', marginLeft: 8 }}>{timeAgo}</span>
-        </div>
-      </div>
-      <p>{post.content}</p>
-      {post.photoUrls.map(url => (
-        <img key={url} src={url} alt="" style={{ maxWidth: '100%', borderRadius: 8, margin: '8px 0' }} />
-      ))}
-      
-      <div style={{ marginTop: 12, borderTop: '1px solid #eee', paddingTop: 12 }}>
+      {/* Actions Bar */}
+      <div style={{
+        padding: 'var(--space-md) var(--space-xl)',
+        borderTop: '1px solid var(--color-border-light)',
+        display: 'flex',
+        gap: 'var(--space-xs)',
+      }}>
         <button
           onClick={() => setShowComments(!showComments)}
-          style={{ fontSize: 14, color: '#3498db', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          className="btn btn-ghost"
+          style={{
+            fontSize: 14,
+            color: showComments ? 'var(--color-brand)' : 'var(--color-text-secondary)',
+            background: showComments ? 'var(--color-brand-light)' : 'transparent',
+          }}
         >
-          {showComments ? 'Hide' : 'Show'} Comments ({post.comments.length})
+          💬 {post.comments.length} {post.comments.length === 1 ? 'comment' : 'comments'}
         </button>
-        
-        {showComments && (
-          <div style={{ marginTop: 12 }}>
-            {/* Comment input */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+      </div>
+
+      {/* Comments Section */}
+      {showComments && (
+        <div style={{
+          padding: 'var(--space-lg) var(--space-xl) var(--space-xl)',
+          borderTop: '1px solid var(--color-border-light)',
+          backgroundColor: 'var(--color-bg)',
+        }}>
+          {/* Comment Input */}
+          <div style={{ display: 'flex', gap: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+            <div className="avatar avatar-sm" style={{ background: 'var(--color-brand-gradient)', flexShrink: 0 }}>
+              {post.authorName?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+            </div>
+            <div style={{ flex: 1, display: 'flex', gap: 'var(--space-sm)' }}>
               <input
                 type="text"
+                className="input"
                 placeholder="Write a comment..."
                 value={commentText}
                 onChange={e => setCommentText(e.target.value)}
-                style={{ flex: 1, padding: 8, fontSize: 14, border: '1px solid #ddd', borderRadius: 4 }}
+                onKeyDown={e => e.key === 'Enter' && handleComment()}
+                style={{ fontSize: 14 }}
               />
               <button
                 onClick={handleComment}
-                style={{ padding: '8px 16px', fontSize: 14, backgroundColor: '#3498db', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                className="btn btn-primary"
+                disabled={!commentText.trim()}
+                style={{ flexShrink: 0 }}
               >
-                Comment
+                Send
               </button>
             </div>
-            
-            {/* Comments list */}
-            <div>
-              {post.comments.length > 0 ? renderComments(post.comments) : (
-                <p style={{ color: '#999', textAlign: 'center', padding: 20 }}>No comments yet. Be the first to comment!</p>
-              )}
+          </div>
+
+          {/* Comments List */}
+          {post.comments.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+              {post.comments.filter(c => !c.parentCommentId).map(comment => (
+                <CommentItem
+                  key={comment.id}
+                  comment={comment}
+                  postId={post.id}
+                  onReply={(commentId) => {
+                    setReplyingTo(replyingTo === commentId ? null : commentId);
+                    setCommentingOn(commentingOn === commentId ? null : commentId);
+                  }}
+                  replyText={replyingTo === comment.id ? replyText : ''}
+                  setReplyText={setReplyText}
+                  onSendReply={() => handleReply(comment.id)}
+                />
+              ))}
             </div>
+          ) : (
+            <p style={{ color: 'var(--color-text-tertiary)', textAlign: 'center', padding: 'var(--space-xl) 0', fontSize: 14 }}>
+              No comments yet. Be the first!
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* --- Comment Item Sub-component --- */
+function CommentItem({
+  comment,
+  postId,
+  onReply,
+  replyText,
+  setReplyText,
+  onSendReply,
+}: {
+  comment: Comment;
+  postId: number;
+  onReply: (id: number) => void;
+  replyText: string;
+  setReplyText: (text: string) => void;
+  onSendReply: () => void;
+}) {
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 'var(--space-md)',
+      padding: 'var(--space-md)',
+      backgroundColor: 'var(--color-surface)',
+      borderRadius: 'var(--radius-md)',
+    }}>
+      <div className="avatar avatar-sm" style={{
+        background: 'var(--color-brand-gradient)',
+        flexShrink: 0,
+        fontSize: 12,
+      }}>
+        {comment.authorName?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-xs)' }}>
+          <strong style={{ fontSize: 14 }}>{comment.authorName}</strong>
+          <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{getTimeAgo(comment.createdAt)}</span>
+        </div>
+        <p style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 'var(--space-sm)' }}>{comment.content}</p>
+        <button
+          onClick={() => onReply(comment.id)}
+          className="btn btn-ghost"
+          style={{ fontSize: 12, padding: 'var(--space-xs) var(--space-sm)' }}
+        >
+          Reply
+        </button>
+
+        {/* Reply Input */}
+        {replyText !== undefined && (
+          <div style={{ marginTop: 'var(--space-md)', display: 'flex', gap: 'var(--space-sm)' }}>
+            <input
+              type="text"
+              className="input"
+              placeholder="Write a reply..."
+              value={replyText}
+              onChange={e => setReplyText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && onSendReply()}
+              style={{ fontSize: 13, padding: 'var(--space-sm) var(--space-md)' }}
+            />
+            <button onClick={onSendReply} className="btn btn-primary btn-sm">Reply</button>
+          </div>
+        )}
+
+        {/* Nested Replies */}
+        {comment.replies?.length > 0 && (
+          <div style={{ marginTop: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+            {comment.replies.map(reply => (
+              <div key={reply.id} style={{
+                marginLeft: 'var(--space-lg)',
+                padding: 'var(--space-sm) var(--space-md)',
+                backgroundColor: 'var(--color-bg)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 13,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: '2px' }}>
+                  <strong>{reply.authorName}</strong>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{getTimeAgo(reply.createdAt)}</span>
+                </div>
+                {reply.content}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -154,6 +268,7 @@ export default function PostCard({ post }: { post: Post }) {
   );
 }
 
+/* --- Time Utilities --- */
 function getTimeAgo(date: string): string {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
   if (seconds < 60) return 'just now';
@@ -162,5 +277,6 @@ function getTimeAgo(date: string): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  if (days < 7) return `${days}d ago`;
+  return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }

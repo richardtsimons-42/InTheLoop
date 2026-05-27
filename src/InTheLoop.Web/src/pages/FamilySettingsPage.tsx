@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { familiesApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import '../index.css';
 
 interface Family {
   id: number;
@@ -23,10 +24,10 @@ export default function FamilySettingsPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [coverPhotoUrl, setCoverPhotoUrl] = useState('');
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
 
-  useEffect(() => {
-    loadFamily();
-  }, [familyId]);
+  useEffect(() => { loadFamily(); }, [familyId]);
 
   const loadFamily = async () => {
     if (!familyId) return;
@@ -50,128 +51,174 @@ export default function FamilySettingsPage() {
   const handleSave = async () => {
     if (!familyId) return;
     setSaving(true);
+    setMessage('');
     try {
-      const updatedFamily = await familiesApi.updateFamily(
-        parseInt(familyId),
-        name,
-        description || undefined,
-        coverPhotoUrl || undefined
-      );
-      setFamily(updatedFamily.data);
-      alert('Family settings saved successfully!');
+      await familiesApi.updateFamily(parseInt(familyId), name, description || undefined, coverPhotoUrl || undefined);
+      setMessage('Settings saved successfully!');
+      setMessageType('success');
+      loadFamily();
     } catch (error) {
       console.error('Failed to save family settings:', error);
-      alert('Failed to save family settings');
+      setMessage('Failed to save settings');
+      setMessageType('error');
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>;
-  if (!family) return <div style={{ padding: 40, textAlign: 'center' }}>Family not found</div>;
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <span className="spinner" style={{ width: 32, height: 32 }} />
+      </div>
+    );
+  }
+
+  if (!family) {
+    return (
+      <div className="container" style={{ paddingTop: 'var(--space-3xl)' }}>
+        <div className="empty-state">
+          <div className="empty-state-title">Family not found</div>
+          <Link to="/families" className="btn btn-primary" style={{ marginTop: 'var(--space-lg)' }}>
+            Back to Families
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const isOwner = family.ownerName === 'You';
 
   return (
-    <div style={{ maxWidth: 600, margin: '40px auto', padding: 20 }}>
-      <h1>Family Settings</h1>
-      
-      <div style={{ marginBottom: 20, padding: 16, border: '1px solid #ddd', borderRadius: 8 }}>
-        <h3>{family.name}</h3>
-        <p>{family.memberCount} members</p>
-        <p>Owner: {family.ownerName}</p>
+    <div className="container" style={{ paddingTop: 'var(--space-2xl)', paddingBottom: 'var(--space-3xl)', maxWidth: 600 }}>
+      {/* Back link */}
+      <Link to={`/families/${familyId}`} style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 'var(--space-sm)',
+        fontSize: 14,
+        color: 'var(--color-text-secondary)',
+        marginBottom: 'var(--space-xl)',
+      }}>
+        ← Back to Feed
+      </Link>
+
+      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 'var(--space-xl)', letterSpacing: '-0.5px' }}>
+        Family Settings
+      </h1>
+
+      {/* Info Card */}
+      <div className="card" style={{ marginBottom: 'var(--space-xl)', padding: 'var(--space-xl)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-md)' }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 'var(--radius-lg)',
+            background: 'var(--color-brand-gradient)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 24,
+          }}>👨‍👩‍👧</div>
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{family.name}</h2>
+            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', margin: 0 }}>
+              {family.memberCount} members · Owner: {family.ownerName}
+            </p>
+          </div>
+        </div>
       </div>
 
+      {/* Message */}
+      {message && (
+        <div style={{
+          padding: 'var(--space-md) var(--space-lg)',
+          marginBottom: 'var(--space-xl)',
+          backgroundColor: messageType === 'success' ? 'var(--color-success-bg)' : 'var(--color-error-bg)',
+          color: messageType === 'success' ? 'var(--color-success)' : 'var(--color-error)',
+          borderRadius: 'var(--radius-md)',
+          fontSize: 14,
+          fontWeight: 500,
+        }}>
+          {message}
+        </div>
+      )}
+
+      {/* Form */}
       <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
-            Family Name
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            disabled={!isOwner}
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              fontSize: 14,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
+        <div style={{
+          background: 'var(--color-surface)',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--color-border)',
+          overflow: 'hidden',
+        }}>
+          <div style={{ padding: 'var(--space-md) var(--space-xl)', borderBottom: '1px solid var(--color-border-light)' }}>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, marginBottom: 'var(--space-sm)', color: 'var(--color-text)' }}>
+              Family Name
+            </label>
+            <input
+              type="text"
+              className="input"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              disabled={!isOwner}
+              style={{ fontSize: 14 }}
+            />
+          </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
-            Description
-          </label>
-          <textarea
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            disabled={!isOwner}
-            rows={4}
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              fontSize: 14,
-              boxSizing: 'border-box',
-              resize: 'vertical',
-            }}
-          />
-        </div>
+          <div style={{ padding: 'var(--space-md) var(--space-xl)', borderBottom: '1px solid var(--color-border-light)' }}>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, marginBottom: 'var(--space-sm)', color: 'var(--color-text)' }}>
+              Description
+            </label>
+            <textarea
+              className="input"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              disabled={!isOwner}
+              rows={4}
+              style={{ fontSize: 14, resize: 'vertical' }}
+            />
+          </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
-            Cover Photo URL
-          </label>
-          <input
-            type="text"
-            value={coverPhotoUrl}
-            onChange={e => setCoverPhotoUrl(e.target.value)}
-            disabled={!isOwner}
-            placeholder="https://example.com/photo.jpg"
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              fontSize: 14,
-              boxSizing: 'border-box',
-            }}
-          />
+          <div style={{ padding: 'var(--space-md) var(--space-xl)' }}>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, marginBottom: 'var(--space-sm)', color: 'var(--color-text)' }}>
+              Cover Photo URL
+            </label>
+            <input
+              type="text"
+              className="input"
+              value={coverPhotoUrl}
+              onChange={e => setCoverPhotoUrl(e.target.value)}
+              disabled={!isOwner}
+              placeholder="https://example.com/photo.jpg"
+              style={{ fontSize: 14 }}
+            />
+          </div>
         </div>
 
         {isOwner && (
           <button
             type="submit"
+            className="btn btn-primary btn-lg btn-block"
             disabled={saving}
-            style={{
-              padding: '12px 24px',
-              backgroundColor: '#3498db',
-              color: 'white',
-              border: 'none',
-              borderRadius: 8,
-              cursor: saving ? 'not-allowed' : 'pointer',
-              fontWeight: 600,
-              fontSize: 14,
-            }}
+            style={{ marginTop: 'var(--space-xl)' }}
           >
-            {saving ? 'Saving...' : 'Save Settings'}
+            {saving ? <span className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} /> : 'Save Settings'}
           </button>
         )}
-      </form>
 
-      <div style={{ marginTop: 20 }}>
-        <Link to={`/families/${familyId}`}>
-          <button style={{ marginRight: 10 }}>
-            ← Back to Feed
-          </button>
-        </Link>
-      </div>
+        {!isOwner && (
+          <p style={{
+            marginTop: 'var(--space-lg)',
+            textAlign: 'center',
+            fontSize: 14,
+            color: 'var(--color-text-tertiary)',
+          }}>
+            Only the family owner can edit settings
+          </p>
+        )}
+      </form>
     </div>
   );
 }

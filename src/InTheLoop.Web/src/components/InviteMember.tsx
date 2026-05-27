@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { familiesApi } from '../services/api';
+import '../index.css';
 
 interface InviteMemberProps {
   familyId: number;
@@ -15,7 +16,7 @@ export default function InviteMember({ familyId, onInvite }: InviteMemberProps) 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
-    
+
     setLoading(true);
     setError('');
     setSuccess(false);
@@ -34,48 +35,49 @@ export default function InviteMember({ familyId, onInvite }: InviteMemberProps) 
   };
 
   return (
-    <div style={{ marginTop: 16, padding: 16, border: '1px solid #eee', borderRadius: 8 }}>
-      <h3 style={{ margin: '0 0 12px 0' }}>Invite Family Member</h3>
+    <div style={{ marginTop: 'var(--space-lg)', paddingTop: 'var(--space-lg)', borderTop: '1px solid var(--color-border-light)' }}>
       {success && (
-        <div style={{ padding: 8, marginBottom: 12, backgroundColor: '#d4edda', color: '#155724', borderRadius: 4 }}>
-          Member invited successfully!
+        <div style={{
+          padding: 'var(--space-sm) var(--space-md)',
+          marginBottom: 'var(--space-md)',
+          backgroundColor: 'var(--color-success-bg)',
+          color: 'var(--color-success)',
+          borderRadius: 'var(--radius-md)',
+          fontSize: 13,
+          fontWeight: 500,
+        }}>
+          ✅ Member invited successfully!
         </div>
       )}
       {error && (
-        <div style={{ padding: 8, marginBottom: 12, backgroundColor: '#f8d7da', color: '#721c24', borderRadius: 4 }}>
+        <div style={{
+          padding: 'var(--space-sm) var(--space-md)',
+          marginBottom: 'var(--space-md)',
+          backgroundColor: 'var(--color-error-bg)',
+          color: 'var(--color-error)',
+          borderRadius: 'var(--radius-md)',
+          fontSize: 13,
+          fontWeight: 500,
+        }}>
           {error}
         </div>
       )}
       <form onSubmit={handleInvite}>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
           <input
             type="email"
+            className="input"
             placeholder="Enter email address"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            style={{
-              flex: 1,
-              padding: '8px 12px',
-              border: '1px solid #ddd',
-              borderRadius: 4,
-              fontSize: 14,
-            }}
+            style={{ fontSize: 13, padding: 'var(--space-sm) var(--space-md)' }}
           />
           <button
             type="submit"
+            className="btn btn-primary btn-sm"
             disabled={loading || !email.trim()}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#3498db',
-              color: 'white',
-              border: 'none',
-              borderRadius: 4,
-              cursor: loading || !email.trim() ? 'not-allowed' : 'pointer',
-              fontWeight: 600,
-              fontSize: 14,
-            }}
           >
-            {loading ? 'Inviting...' : 'Invite'}
+            {loading ? '...' : 'Invite'}
           </button>
         </div>
       </form>

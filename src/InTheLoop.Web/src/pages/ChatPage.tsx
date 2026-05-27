@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import UserStatus from '../components/UserStatus';
 import * as signalR from '@microsoft/signalr';
+import '../index.css';
 
 interface ChatMessage {
   id: number;
@@ -18,166 +19,137 @@ interface Conversation {
   conversationId: number | null;
   partnerName: string;
   partnerAvatar: string | null;
+  lastMessage: string;
+  lastMessageTime: string;
+  unreadCount: number;
 }
 
 export default function ChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
+  const navigate = useNavigate();
   const { currentUserId } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hubConnectionRef = useRef<signalR.HubConnection | null>(null);
 
+  const hasConversationId = !!conversationId;
+
+  // Load conversations list
   useEffect(() => {
-    if (!conversationId) {
-      // No conversation selected - load conversations list and set loading to false
-      setLoading(false);
-      return;
-    }
+    const token = localStorage.getItem('token');
+    fetch('/api/contacts', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        setConversations(data);
+        if (!hasConversationId && data.length > 0) {
+          // Auto-select first conversation
+          navigate(`/chat/${data[0].id}`, { replace: true });
+        }
+      })
+      .catch(err => console.error('Failed to load conversations:', err));
+  }, []);
+
+  // Load conversation + messages when conversationId changes
+  useEffect(() => {
+    if (!hasConversationId) return;
+
+    setLoading(true);
 
     // Load conversation info
-    loadConversationInfo();
+    const found = conversations.find(c => c.id === conversationId);
+    if (found) setConversation(found);
 
     // Load message history
-    loadMessages();
+    fetch(`/api/contacts/${conversationId}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        setMessages(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to load messages:', err);
+        setLoading(false);
+      });
 
     // Setup SignalR
     const token = localStorage.getItem('token');
     const hubConnection = new signalR.HubConnectionBuilder()
-      .withUrl('/hubs/chat', {
-        accessTokenFactory: () => token!,
-      })
+      .withUrl('/hubs/chat', { accessTokenFactory: () => token! })
       .withAutomaticReconnect([0, 2000, 5000, 10000, 20000])
       .build();
 
     hubConnection.on('ReceiveMessage', (data: any) => {
-      // DM message
-      const msg: ChatMessage = {
-        id: data.id,
-        content: data.content,
-        sentAt: data.sentAt,
-        isOwn: data.senderId === currentUserId,
-        senderName: data.senderName,
-      };
-      setMessages(prev => {
-        if (prev.some(m => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
-      scrollToBottom();
+      if (conversation?.conversationType === 'dm' && conversation.conversationId === data.recipientId) {
+        const msg: ChatMessage = {
+          id: data.id, content: data.content, sentAt: data.sentAt,
+          isOwn: data.senderId === currentUserId, senderName: data.senderName,
+        };
+        setMessages(prev => { if (prev.some(m => m.id === msg.id)) return prev; return [...prev, msg]; });
+        scrollToBottom();
+      }
     });
 
     hubConnection.on('ReceiveFamilyMessage', (data: any) => {
-      const msg: ChatMessage = {
-        id: data.id,
-        content: data.content,
-        sentAt: data.sentAt,
-        isOwn: false,
-        senderName: data.senderName,
-      };
-      setMessages(prev => {
-        if (prev.some(m => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
-      scrollToBottom();
+      if (conversation?.conversationType === 'family' && conversation.conversationId === data.familyId) {
+        const msg: ChatMessage = {
+          id: data.id, content: data.content, sentAt: data.sentAt,
+          isOwn: false, senderName: data.senderName,
+        };
+        setMessages(prev => { if (prev.some(m => m.id === msg.id)) return prev; return [...prev, msg]; });
+        scrollToBottom();
+      }
     });
 
-    hubConnection.start().catch(err => console.error('SignalR connection failed:', err));
+    hubConnection.start().catch(err => console.error('SignalR failed:', err));
     hubConnectionRef.current = hubConnection;
 
-    return () => {
-      hubConnection.stop();
-    };
+    return () => hubConnection.stop();
   }, [conversationId]);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  useEffect(() => { scrollToBottom(); }, [messages]);
 
-  const loadConversationInfo = async () => {
-    const token = localStorage.getItem('token');
-    try {
-      const res = await fetch('/api/contacts', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data: Conversation[] = await res.json();
-        const found = data.find(c => c.id === conversationId);
-        if (found) setConversation(found);
-      }
-    } catch (err) {
-      console.error('Failed to load conversation info:', err);
-    }
-  };
-
-  const loadMessages = async () => {
-    if (!conversationId) return;
-    const token = localStorage.getItem('token');
-    try {
-      const res = await fetch(`/api/contacts/${conversationId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setMessages(data);
-      }
-    } catch (err) {
-      console.error('Failed to load messages:', err);
-    } finally {
-      setLoading(false);
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const sendMessage = async () => {
     if (!input.trim() || sending) return;
-
     setSending(true);
-    const token = localStorage.getItem('token');
     const content = input.trim();
     setInput('');
 
     try {
       if (conversation?.conversationType === 'family' && conversation.conversationId) {
-        // Send via SignalR to family
         await hubConnectionRef.current?.invoke('SendFamilyMessage', conversation.conversationId, content);
       } else {
-        // Send DM via REST
         const otherId = conversationId?.replace('dm-', '');
         const res = await fetch('/api/messages', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            recipientId: otherId,
-            content,
-          }),
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+          body: JSON.stringify({ recipientId: otherId, content }),
         });
         if (res.ok) {
-          // Optimistically add the sent message
           const sentMsg: ChatMessage = {
-            id: Date.now(),
-            content,
-            sentAt: new Date().toISOString(),
-            isOwn: true,
-            senderName: currentUserId ? 'You' : 'Unknown',
+            id: Date.now(), content, sentAt: new Date().toISOString(),
+            isOwn: true, senderName: currentUserId ? 'You' : 'Unknown',
           };
           setMessages(prev => [...prev, sentMsg]);
         }
       }
     } catch (err) {
-      console.error('Failed to send message:', err);
-      setInput(content); // Restore input on failure
+      console.error('Failed to send:', err);
+      setInput(content);
     }
-
     setSending(false);
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const formatTime = (dateStr: string) => {
@@ -185,166 +157,279 @@ export default function ChatPage() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading chat...</div>;
-  if (!conversationId) {
-    // No conversation selected - show list of conversations
+  const formatListTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'now';
+    if (diffMins < 60) return `${diffMins}m`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const truncateMessage = (msg: string, maxLen = 35) => {
+    return msg.length > maxLen ? msg.substring(0, maxLen) + '...' : msg;
+  };
+
+  // === MOBILE: Show conversation list ===
+  if (!hasConversationId) {
     return (
-      <div style={{ maxWidth: 600, margin: '40px auto', padding: 20 }}>
-        <h1>Messages</h1>
-        <p style={{ color: '#999', textAlign: 'center' }}>Select a conversation to start chatting</p>
+      <div className="container" style={{ paddingTop: 'var(--space-xl)', paddingBottom: 'var(--space-3xl)' }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 'var(--space-xl)', letterSpacing: '-0.5px' }}>
+          Messages
+        </h1>
+        {conversations.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">💬</div>
+            <div className="empty-state-title">No conversations yet</div>
+            <p>Start a conversation with a family member</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+            {conversations.map(conv => (
+              <button
+                key={conv.id}
+                onClick={() => navigate(`/chat/${conv.id}`)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-md)',
+                  padding: 'var(--space-md)',
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  width: '100%',
+                  transition: 'all var(--transition-fast)',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
+                  e.currentTarget.style.borderColor = 'var(--color-text-tertiary)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.backgroundColor = 'var(--color-surface)';
+                  e.currentTarget.style.borderColor = 'var(--color-border)';
+                }}
+              >
+                {/* Avatar */}
+                <div style={{
+                  width: 48, height: 48, borderRadius: 'var(--radius-full)',
+                  background: conv.conversationType === 'family' ? '#2c3e50' : 'var(--color-brand-gradient)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'white', fontSize: 18, fontWeight: 700, flexShrink: 0, overflow: 'hidden',
+                }}>
+                  {conv.partnerAvatar ? (
+                    <img src={conv.partnerAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : conv.conversationType === 'family' ? '👨‍👩‍👧' : conv.partnerName?.charAt(0).toUpperCase()}
+                </div>
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                    <span style={{ fontWeight: 600, fontSize: 15 }}>{conv.partnerName}</span>
+                    <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', flexShrink: 0 }}>{formatListTime(conv.lastMessageTime)}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {conv.unreadCount > 0 && <span style={{ color: 'var(--color-brand)', fontWeight: 500 }}>{conv.unreadCount} unread · </span>}
+                    {truncateMessage(conv.lastMessage)}
+                  </div>
+                </div>
+                {conv.unreadCount > 0 && (
+                  <span className="badge badge-brand" style={{ flexShrink: 0 }}>{conv.unreadCount}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
-  if (!conversation) return <div style={{ padding: 40, textAlign: 'center' }}>Conversation not found</div>;
 
+  if (!conversation) {
+    return (
+      <div className="container" style={{ paddingTop: 'var(--space-xl)' }}>
+        <div className="empty-state">
+          <div className="empty-state-icon">🔍</div>
+          <div className="empty-state-title">Conversation not found</div>
+          <button className="btn btn-primary" onClick={() => navigate('/chat')}>Back to Messages</button>
+        </div>
+      </div>
+    );
+  }
+
+  // === DESKTOP: Split layout | MOBILE: Full chat view ===
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 56px)', maxWidth: 900, margin: '0 auto' }}>
-      {/* Chat area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Header */}
-        <div
-          style={{
-            padding: '16px 24px',
-            borderBottom: '1px solid #eee',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            backgroundColor: '#fff',
-          }}
-        >
-          <div
+    <div style={{
+      display: 'flex',
+      height: 'calc(100vh - 60px)',
+      maxWidth: 1100,
+      margin: '0 auto',
+      background: 'var(--color-surface)',
+      borderLeft: '1px solid var(--color-border)',
+      borderRight: '1px solid var(--color-border)',
+      overflow: 'hidden',
+    }}>
+      {/* Sidebar — hidden on mobile when chat is open */}
+      <div style={{
+        width: 340,
+        borderRight: '1px solid var(--color-border)',
+        overflowY: 'auto',
+        display: 'none',
+      }} className="desktop-only">
+        <div style={{ padding: 'var(--space-lg)', borderBottom: '1px solid var(--color-border)', fontWeight: 700, fontSize: 18 }}>
+          Messages
+        </div>
+        {conversations.map(conv => (
+          <button
+            key={conv.id}
+            onClick={() => navigate(`/chat/${conv.id}`)}
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              backgroundColor: conversation.conversationType === 'family' ? '#2c3e50' : '#3498db',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: 16,
-              fontWeight: 'bold',
-              overflow: 'hidden',
+              display: 'flex', alignItems: 'center', gap: 'var(--space-md)',
+              padding: 'var(--space-md) var(--space-lg)',
+              width: '100%', border: 'none', background: 'transparent',
+              cursor: 'pointer', borderBottom: '1px solid var(--color-border-light)',
+              textAlign: 'left',
+              backgroundColor: conversationId === conv.id ? 'var(--color-brand-light)' : 'transparent',
+              transition: 'background var(--transition-fast)',
             }}
           >
+            <div style={{
+              width: 44, height: 44, borderRadius: 'var(--radius-full)',
+              background: conv.conversationType === 'family' ? '#2c3e50' : 'var(--color-brand-gradient)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'white', fontSize: 16, fontWeight: 700, flexShrink: 0, overflow: 'hidden',
+            }}>
+              {conv.partnerAvatar ? (
+                <img src={conv.partnerAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : conv.conversationType === 'family' ? '👨‍👩‍👧' : conv.partnerName?.charAt(0).toUpperCase()}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                <span style={{ fontWeight: 600, fontSize: 14 }}>{conv.partnerName}</span>
+                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{formatListTime(conv.lastMessageTime)}</span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {truncateMessage(conv.lastMessage)}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Chat Area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* Header */}
+        <div style={{
+          padding: 'var(--space-md) var(--space-lg)',
+          borderBottom: '1px solid var(--color-border)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-md)',
+          background: 'rgba(255,255,255,0.85)',
+          backdropFilter: 'blur(12px)',
+        }}>
+          {/* Mobile back button */}
+          <button
+            onClick={() => navigate('/chat')}
+            style={{
+              display: 'none',
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 20, color: 'var(--color-brand)', padding: 'var(--space-sm)',
+            }}
+            className="mobile-only"
+          >
+            ← Back
+          </button>
+
+          <div style={{
+            width: 40, height: 40, borderRadius: 'var(--radius-full)',
+            background: conversation.conversationType === 'family' ? '#2c3e50' : 'var(--color-brand-gradient)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'white', fontSize: 16, fontWeight: 700, overflow: 'hidden',
+          }}>
             {conversation.partnerAvatar ? (
               <img src={conversation.partnerAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              conversation.conversationType === 'family' ? '👨‍👩‍👧' : conversation.partnerName.charAt(0).toUpperCase()
-            )}
+            ) : conversation.conversationType === 'family' ? '👨‍👩‍👧' : conversation.partnerName?.charAt(0).toUpperCase()}
           </div>
           <div>
-            <div style={{ fontWeight: 600 }}>{conversation.partnerName}</div>
-            <div style={{ fontSize: 12, color: '#999' }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{conversation.partnerName}</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
               {conversation.conversationType === 'family' ? 'Group' : 'Direct Message'}
             </div>
-            {conversation.conversationType === 'dm' && (
-              <UserStatus userId={conversationId?.replace('dm-', '') || ''} userName={conversation.partnerName} />
-            )}
           </div>
         </div>
 
         {/* Messages */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '20px 24px',
-            backgroundColor: '#f7f8fa',
-          }}
-        >
+        <div style={{
+          flex: 1, overflowY: 'auto', padding: 'var(--space-lg)',
+          background: 'var(--color-bg)',
+        }}>
           {messages.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#999', marginTop: 40 }}>
-              No messages yet. Say hello!
+            <div className="empty-state" style={{ marginTop: 'var(--space-3xl)' }}>
+              <div className="empty-state-icon">👋</div>
+              <div className="empty-state-title">No messages yet</div>
+              <p>Say hello!</p>
             </div>
           ) : (
-            messages.map(msg => (
-              <div
-                key={msg.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: msg.isOwn ? 'flex-end' : 'flex-start',
-                  marginBottom: 12,
-                }}
-              >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+              {messages.map(msg => (
                 <div
+                  key={msg.id}
                   style={{
-                    maxWidth: '70%',
-                    padding: '10px 16px',
-                    borderRadius: msg.isOwn ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                    backgroundColor: msg.isOwn ? '#3498db' : '#fff',
-                    color: msg.isOwn ? 'white' : '#333',
-                    boxShadow: msg.isOwn ? 'none' : '0 1px 2px rgba(0,0,0,0.06)',
+                    display: 'flex',
+                    justifyContent: msg.isOwn ? 'flex-end' : 'flex-start',
                   }}
                 >
-                  {!msg.isOwn && (
-                    <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#2c3e50' }}>
-                      {msg.senderName}
+                  <div style={{
+                    maxWidth: '75%',
+                    padding: 'var(--space-md) var(--space-lg)',
+                    borderRadius: msg.isOwn ? 'var(--radius-xl) var(--radius-xl) 4px var(--radius-xl)' : 'var(--radius-xl) var(--radius-xl) var(--radius-xl) 4px',
+                    background: msg.isOwn ? 'var(--color-brand)' : 'var(--color-surface)',
+                    color: msg.isOwn ? 'white' : 'var(--color-text)',
+                    boxShadow: msg.isOwn ? 'none' : 'var(--shadow-sm)',
+                  }}>
+                    {!msg.isOwn && (
+                      <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 'var(--space-xs)', color: 'var(--color-brand)' }}>
+                        {msg.senderName}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word' }}>{msg.content}</div>
+                    <div style={{ fontSize: 10, marginTop: 'var(--space-xs)', textAlign: 'right', opacity: msg.isOwn ? 0.7 : 0.5 }}>
+                      {formatTime(msg.sentAt)}
                     </div>
-                  )}
-                  <div style={{ fontSize: 14, lineHeight: 1.4 }}>{msg.content}</div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      marginTop: 4,
-                      textAlign: 'right',
-                      opacity: msg.isOwn ? 0.7 : 0.5,
-                    }}
-                  >
-                    {formatTime(msg.sentAt)}
                   </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
         {/* Input */}
-        <div
-          style={{
-            padding: '16px 24px',
-            borderTop: '1px solid #eee',
-            backgroundColor: '#fff',
-          }}
-        >
-          <form
-            onSubmit={e => {
-              e.preventDefault();
-              sendMessage();
-            }}
-            style={{ display: 'flex', gap: 12 }}
-          >
+        <div style={{
+          padding: 'var(--space-md) var(--space-lg)',
+          borderTop: '1px solid var(--color-border)',
+          background: 'var(--color-surface)',
+        }}>
+          <form onSubmit={e => { e.preventDefault(); sendMessage(); }} style={{ display: 'flex', gap: 'var(--space-sm)' }}>
             <input
               type="text"
+              className="input"
+              placeholder={`Message ${conversation.partnerName}`}
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder={conversation.conversationType === 'family' ? `Message ${conversation.partnerName}` : `Message ${conversation.partnerName}`}
               disabled={sending}
-              style={{
-                flex: 1,
-                padding: '12px 16px',
-                border: '1px solid #ddd',
-                borderRadius: 24,
-                fontSize: 14,
-                outline: 'none',
-              }}
+              style={{ fontSize: 14, borderRadius: 'var(--radius-full)', padding: 'var(--space-md) var(--space-lg)' }}
             />
             <button
               type="submit"
+              className="btn btn-primary"
               disabled={sending || !input.trim()}
-              style={{
-                padding: '12px 24px',
-                backgroundColor: input.trim() ? '#3498db' : '#ccc',
-                color: 'white',
-                border: 'none',
-                borderRadius: 24,
-                cursor: input.trim() ? 'pointer' : 'default',
-                fontWeight: 600,
-                fontSize: 14,
-              }}
+              style={{ borderRadius: 'var(--radius-full)', padding: 'var(--space-md) var(--space-xl)' }}
             >
-              {sending ? '...' : 'Send'}
+              {sending ? <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> : 'Send'}
             </button>
           </form>
         </div>
