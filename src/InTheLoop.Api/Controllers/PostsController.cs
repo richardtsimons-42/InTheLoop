@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using InTheLoop.Api.Data;
 using InTheLoop.Api.Services;
 using InTheLoop.Api.DTOs;
 
@@ -12,11 +14,13 @@ public class PostsController : ControllerBase
 {
     private readonly PostService _postService;
     private readonly PhotoService _photoService;
+    private readonly ApplicationDbContext _context;
 
-    public PostsController(PostService postService, PhotoService photoService)
+    public PostsController(PostService postService, PhotoService photoService, ApplicationDbContext context)
     {
         _postService = postService;
         _photoService = photoService;
+        _context = context;
     }
 
     [HttpPost]
@@ -30,6 +34,22 @@ public class PostsController : ControllerBase
     [HttpPost("{postId}/photos")]
     public async Task<IActionResult> UploadPhoto(int postId, [FromForm] IFormFile file)
     {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value!;
+
+        var post = await _context.Posts
+            .Include(p => p.Family)
+            .FirstOrDefaultAsync(p => p.Id == postId);
+
+        if (post == null)
+            return NotFound(new { message = "Post not found" });
+
+        // Verify the user is a member of the family
+        var isMember = await _context.FamilyMembers
+            .AnyAsync(fm => fm.UserId == userId && fm.FamilyId == post.FamilyId);
+
+        if (!isMember)
+            return StatusCode(403, new { message = "You must be a family member to upload photos" });
+
         var url = await _photoService.UploadPhotoAsync(postId, file);
         return Ok(new { url });
     }
@@ -37,6 +57,17 @@ public class PostsController : ControllerBase
     [HttpGet("{familyId}/feed")]
     public async Task<IActionResult> GetFeed(int familyId, [FromQuery] int skip = 0, [FromQuery] int take = 20)
     {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
+        // Verify the user is a member of this family
+        var isMember = await _context.FamilyMembers
+            .AnyAsync(fm => fm.UserId == userId && fm.FamilyId == familyId);
+
+        if (!isMember)
+            return Forbid();
+
         var posts = await _postService.GetFamilyFeedAsync(familyId, skip, take);
         return Ok(posts);
     }
