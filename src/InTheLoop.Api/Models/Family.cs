@@ -6,6 +6,7 @@ public class Family
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? CoverPhotoUrl { get; set; }
+    public string InviteCode { get; set; } = string.Empty;
     public string OwnerId { get; set; } = string.Empty;
     public User Owner { get; set; } = null!;
     public ICollection<FamilyMember> Members { get; set; } = new List<FamilyMember>();

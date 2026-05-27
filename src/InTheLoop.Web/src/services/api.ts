@@ -19,6 +19,7 @@ export const familiesApi = {
   leaveFamily: (familyId: number) => api.post(`/families/${familyId}/leave`),
   updateFamily: (familyId: number, name?: string, description?: string, coverPhotoUrl?: string) =>
     api.put(`/families/${familyId}`, { name, description, coverPhotoUrl }),
+  inviteMember: (familyId: number, email: string) => api.post(`/families/${familyId}/invite`, { email }),
 };
 
 export const postsApi = {

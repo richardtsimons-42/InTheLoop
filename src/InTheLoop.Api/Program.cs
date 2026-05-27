@@ -64,8 +64,13 @@ builder.Services.AddScoped<CommentService>();
 // Add SignalR
 builder.Services.AddSignalR();
 
-// Add controllers
-builder.Services.AddControllers();
+// Add controllers with JSON options to handle circular references
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.WriteIndented = false;
+    });
 
 // Add CORS
 builder.Services.AddCors(options =>

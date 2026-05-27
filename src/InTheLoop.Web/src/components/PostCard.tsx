@@ -31,17 +31,36 @@ export default function PostCard({ post }: { post: Post }) {
 
   const handleComment = async () => {
     if (!commentText.trim()) return;
-    // In a real app, you'd call the API here
-    setCommentText('');
-    alert('Comment posted!');
+    try {
+      await postsApi.addComment(post.id, commentText);
+      setCommentText('');
+      setReplyingTo(null);
+      // Refresh comments
+      const commentsRes = await postsApi.getComments(post.id);
+      setPosts(prev => prev.map(p => 
+        p.id === post.id ? { ...p, comments: commentsRes.data || [] } : p
+      ));
+    } catch (error) {
+      console.error('Failed to add comment:', error);
+      alert('Failed to add comment');
+    }
   };
 
   const handleReply = async (commentId: number) => {
     if (!commentText.trim()) return;
-    // In a real app, you'd call the API here
-    setReplyingTo(null);
-    setCommentText('');
-    alert('Reply posted!');
+    try {
+      await postsApi.addReply(commentId, post.id, commentText);
+      setReplyingTo(null);
+      setCommentText('');
+      // Refresh comments
+      const commentsRes = await postsApi.getComments(post.id);
+      setPosts(prev => prev.map(p => 
+        p.id === post.id ? { ...p, comments: commentsRes.data || [] } : p
+      ));
+    } catch (error) {
+      console.error('Failed to add reply:', error);
+      alert('Failed to add reply');
+    }
   };
 
   const renderComments = (comments: Comment[], depth = 0) => {

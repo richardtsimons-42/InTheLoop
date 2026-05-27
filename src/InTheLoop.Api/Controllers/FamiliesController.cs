@@ -60,7 +60,18 @@ public class FamiliesController : ControllerBase
             return NotFound(new { message = "Family not found or not authorized" });
         return Ok(result);
     }
+
+    [HttpPost("{familyId}/invite")]
+    public async Task<IActionResult> InviteMember(int familyId, [FromBody] InviteMemberRequest request)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value!;
+        var result = await _familyService.InviteMemberAsync(userId, familyId, request.Email);
+        if (!result)
+            return BadRequest(new { message = "Failed to invite member. User may not exist or already a member." });
+        return Ok(new { message = "Member invited successfully" });
+    }
 }
 
 public record CreateFamilyRequest(string Name, string? Description);
 public record UpdateFamilyRequest(string? Name, string? Description, string? CoverPhotoUrl);
+public record InviteMemberRequest(string Email);

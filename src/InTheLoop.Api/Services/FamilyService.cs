@@ -104,6 +104,37 @@ public class FamilyService
         return MapToDto(family);
     }
 
+    public async Task<bool> InviteMemberAsync(string ownerUserId, int familyId, string inviteeEmail)
+    {
+        var family = await _context.Families
+            .Include(f => f.Members)
+            .FirstOrDefaultAsync(f => f.Id == familyId);
+
+        if (family == null || family.OwnerId != ownerUserId)
+            return false;
+
+        // Check if invitee is already a member
+        var invitee = await _context.Users.FirstOrDefaultAsync(u => u.Email == inviteeEmail);
+        if (invitee == null)
+            return false;
+
+        var alreadyMember = await _context.FamilyMembers
+            .AnyAsync(fm => fm.UserId == invitee.Id && fm.FamilyId == familyId);
+
+        if (alreadyMember)
+            return false;
+
+        var member = new FamilyMember
+        {
+            UserId = invitee.Id,
+            FamilyId = familyId,
+            Role = "member"
+        };
+        _context.FamilyMembers.Add(member);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
     private FamilyDto MapToDto(Family family)
     {
         string ownerName = family.Owner != null

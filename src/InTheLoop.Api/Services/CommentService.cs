@@ -26,12 +26,13 @@ public class CommentService
         _context.Comments.Add(comment);
         await _context.SaveChangesAsync();
 
-        // Load navigation properties
+        // Load navigation properties - avoid circular references
         await _context.Entry(comment).Reference(c => c.Author).LoadAsync();
         if (parentCommentId.HasValue)
         {
             await _context.Entry(comment).Reference(c => c.ParentComment).LoadAsync();
         }
+        // Don't load Replies to avoid circular reference on reply creation
         await _context.Entry(comment).Collection(c => c.Replies).LoadAsync();
 
         return comment;

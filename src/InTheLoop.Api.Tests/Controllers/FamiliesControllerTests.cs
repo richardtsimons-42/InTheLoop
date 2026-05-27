@@ -342,4 +342,127 @@ public class FamiliesControllerTests : IClassFixture<TestWebApplicationFactory>
         Assert.Equal("Keep Family", family.Name);
         Assert.True(await context.FamilyMembers.AnyAsync(m => m.UserId == "leave-keep-owner" && m.FamilyId == familyId));
     }
+
+    [Fact]
+    public async Task InviteMember_Returns200WhenSuccessful()
+    {
+        // Arrange
+        var ownerClient = CreateAuthenticatedClient("invite-owner");
+        var createResponse = await PostJsonAsync(ownerClient, "/api/families", new { name = "Invite Family", description = "Invite test" });
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        var createJson = JsonDocument.Parse(createBody);
+        var familyId = createJson.RootElement.GetProperty("id").GetInt32();
+
+        // Create the invitee user
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var invitee = new User
+        {
+            Id = "invite-member",
+            Email = "invite-member@example.com",
+            FirstName = "Invite",
+            LastName = "Member"
+        };
+        context.Users.Add(invitee);
+        await context.SaveChangesAsync();
+
+        // Act
+        var inviteRequest = new { email = "invite-member@example.com" };
+        var response = await PostJsonAsync(ownerClient, $"/api/families/{familyId}/invite", inviteRequest);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("invited successfully", body);
+    }
+
+    [Fact]
+    public async Task InviteMember_CreatesMemberInDatabase()
+    {
+        // Arrange
+        var ownerClient = CreateAuthenticatedClient("invite-db-owner");
+        var createResponse = await PostJsonAsync(ownerClient, "/api/families", new { name = "Invite DB Family", description = "DB invite test" });
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        var createJson = JsonDocument.Parse(createBody);
+        var familyId = createJson.RootElement.GetProperty("id").GetInt32();
+
+        // Create the invitee user
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var invitee = new User
+        {
+            Id = "invite-db-member",
+            Email = "invite-db-member@example.com",
+            FirstName = "Invite",
+            LastName = "DB Member"
+        };
+        context.Users.Add(invitee);
+        await context.SaveChangesAsync();
+
+        // Act
+        var inviteRequest = new { email = "invite-db-member@example.com" };
+        await PostJsonAsync(ownerClient, $"/api/families/{familyId}/invite", inviteRequest);
+
+        // Assert
+        using var scope2 = _factory.Services.CreateScope();
+        var context2 = scope2.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var member = await context2.FamilyMembers.FirstAsync(m => m.UserId == "invite-db-member");
+        Assert.Equal("member", member.Role);
+    }
+
+    [Fact]
+    public async Task InviteMember_Returns400WhenUserNotFound()
+    {
+        // Arrange
+        var ownerClient = CreateAuthenticatedClient("invite-notfound-owner");
+        var createResponse = await PostJsonAsync(ownerClient, "/api/families", new { name = "Not Found Family", description = "Not found test" });
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        var createJson = JsonDocument.Parse(createBody);
+        var familyId = createJson.RootElement.GetProperty("id").GetInt32();
+
+        // Act
+        var inviteRequest = new { email = "nonexistent@example.com" };
+        var response = await PostJsonAsync(ownerClient, $"/api/families/{familyId}/invite", inviteRequest);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InviteMember_Returns400WhenAlreadyMember()
+    {
+        // Arrange
+        var ownerClient = CreateAuthenticatedClient("invite-already-owner");
+        var createResponse = await PostJsonAsync(ownerClient, "/api/families", new { name = "Already Family", description = "Already test" });
+        var createBody = await createResponse.Content.ReadAsStringAsync();
+        var createJson = JsonDocument.Parse(createBody);
+        var familyId = createJson.RootElement.GetProperty("id").GetInt32();
+
+        // Create and add the user as a member first
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var invitee = new User
+        {
+            Id = "invite-already-member",
+            Email = "invite-already-member@example.com",
+            FirstName = "Already",
+            LastName = "Member"
+        };
+        context.Users.Add(invitee);
+        var member = new FamilyMember
+        {
+            UserId = "invite-already-member",
+            FamilyId = familyId,
+            Role = "member"
+        };
+        context.FamilyMembers.Add(member);
+        await context.SaveChangesAsync();
+
+        // Act
+        var inviteRequest = new { email = "invite-already-member@example.com" };
+        var response = await PostJsonAsync(ownerClient, $"/api/families/{familyId}/invite", inviteRequest);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 }
